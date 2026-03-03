@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.28</title>
+    <title>イチゴ選別システム V1.29</title>
     <style>
         body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
         #status { color: #888; font-size: 14px; margin-bottom: 5px; }
@@ -14,22 +14,20 @@
         #flash-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: none; align-items: center; justify-content: center;
-            z-index: 100; font-size: 180px; font-weight: bold; color: #fff;
+            z-index: 100; font-size: 180px; font-weight: bold;
         }
 
         .btn-container { position: relative; z-index: 10; }
-        .my-button { width: 95%; max-width: 400px; height: 85px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
+        .my-button { width: 95%; max-width: 400px; height: 80px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
         #connectBtn { background-color: #28a745; }
         #tareBtn { background-color: #ff8c00; }
     </style>
 </head>
 <body>
     <div id="flash-overlay"></div>
-
     <div id="status">Bluetooth未接続</div>
     <div id="weight">0.0<span>g</span></div>
     <div id="diff-display">--.- g 減</div>
-    
     <div class="btn-container">
         <button id="connectBtn" class="my-button">① 接続・開始</button>
         <button id="tareBtn" class="my-button">② 基準リセット</button>
@@ -40,9 +38,9 @@
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         
         const sounds = {};
-        const fileNames = ["2l", "l", "m", "s", "start"];
+        // 既存のサイズ用 + 3から12までの玉数用 + start
+        const fileNames = ["2l", "l", "m", "s", "start", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
         
-        // 音声の事前読み込みのみ行う（再生はしない）
         fileNames.forEach(name => {
             const key = name.toUpperCase();
             sounds[key] = new Audio("./" + name + ".mp3");
@@ -56,9 +54,11 @@
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
-                // --- ★修正：一括再生をやめ、個別に「準備完了」状態にする ---
-                // この操作だけで、以降のスクリプトからの play() が許可されます
-                sounds["START"].play(); // start.mp3 だけを鳴らす
+                // iPhone再生許可（音は出さない）
+                for (let key in sounds) {
+                    sounds[key].muted = true;
+                    sounds[key].play().then(() => { sounds[key].pause(); sounds[key].muted = false; }).catch(() => {});
+                }
 
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
@@ -70,6 +70,7 @@
                 await bluetoothChar.startNotifications();
                 
                 document.getElementById('status').innerText = "✅ 接続中";
+                sounds["START"].play();
 
                 bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
@@ -81,10 +82,8 @@
         function processWeight(w) {
             currentWeight = w;
             document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
-
             weightHistory.push(w);
             if (weightHistory.length > 3) weightHistory.shift();
-
             if (weightHistory.length === 3) {
                 const maxW = Math.max(...weightHistory);
                 const minW = Math.min(...weightHistory);
@@ -100,42 +99,64 @@
         function checkDifference(oldW, newW) {
             const diff = oldW - newW;
             if (diff < 5.0) return;
-
             document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減";
             
-            let sizeKey = "";
+            let label = "";
             let bgColor = "";
+            let textColor = "#fff";
+            let audioKey = "";
 
-            // S/Lは青、M/2Lは赤
-            if (diff >= 15.5) { sizeKey = "2L"; bgColor = "#ff0000"; }
-            else if (diff >= 12.0) { sizeKey = "L"; bgColor = "#0000ff"; }
-            else if (diff >= 10.0) { sizeKey = "M"; bgColor = "#ff0000"; }
-            else if (diff >= 7.0)  { sizeKey = "S"; bgColor = "#0000ff"; }
+            // --- 判定ロジック：平均果重に基づく分岐 ---
+            if (diff >= 30.0) { // 8玉〜3玉
+                label = getTamaNum(diff); bgColor = "#800080"; audioKey = label;
+            } else if (diff >= 21.8) { // 11玉〜9玉
+                label = getTamaNum(diff); bgColor = "#adff2f"; audioKey = label;
+            } else if (diff >= 20.0) { // 12玉
+                label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12";
+            } else if (diff >= 15.5) { // 2L
+                label = "2L"; bgColor = "#ff0000"; audioKey = "2L";
+            } else if (diff >= 11.5) { // L (12.6, 13.3, 14.1の中間をとって調整)
+                label = "L"; bgColor = "#0000ff"; audioKey = "L";
+            } else if (diff >= 10.0) { // M
+                label = "M"; bgColor = "#ff0000"; audioKey = "M";
+            } else if (diff >= 7.0) {  // S
+                label = "S"; bgColor = "#0000ff"; audioKey = "S";
+            }
 
-            if (sizeKey) {
-                showFlash(sizeKey, bgColor);
-                // 再生直前に load() を挟まないことで遅延を防ぐ
-                const audio = sounds[sizeKey];
-                audio.currentTime = 0;
-                audio.play().catch(e => {
-                    // もし再生がブロックされたらここで再読み込みを試みる
-                    audio.load();
-                    audio.play();
-                });
+            if (label) {
+                showFlash(label, bgColor, textColor);
+                if(sounds[audioKey.toUpperCase()]) {
+                    sounds[audioKey.toUpperCase()].currentTime = 0;
+                    sounds[audioKey.toUpperCase()].play();
+                }
             }
         }
 
-        function showFlash(text, color) {
+        // 玉数判定用サブ関数
+        function getTamaNum(d) {
+            if (d >= 70.0) return "3";
+            if (d >= 54.0) return "4";
+            if (d >= 44.0) return "5";
+            if (d >= 37.0) return "6";
+            if (d >= 32.0) return "7";
+            if (d >= 28.5) return "8";
+            if (d >= 25.3) return "9";
+            if (d >= 22.9) return "10";
+            return "11";
+        }
+
+        function showFlash(text, color, tColor) {
             const overlay = document.getElementById('flash-overlay');
             overlay.innerText = text;
             overlay.style.backgroundColor = color;
+            overlay.style.color = tColor;
             overlay.style.display = 'flex';
-            setTimeout(() => { overlay.style.display = 'none'; }, 1000);
+            setTimeout(() => { overlay.style.display = 'none'; }, 1100);
         }
 
         document.getElementById('tareBtn').onclick = () => {
             stableWeight = currentWeight;
-            document.getElementById('diff-display').innerText = "基準リセット完了";
+            document.getElementById('diff-display').innerText = "基準リセット";
         };
     </script>
 </body>
