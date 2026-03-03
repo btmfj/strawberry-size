@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.30</title>
+    <title>イチゴ選別システム V1.31</title>
     <style>
         body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
         #status { color: #888; font-size: 14px; margin-bottom: 5px; }
@@ -53,17 +53,8 @@
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
-                // iPhone再生許可の儀式（start以外は無音で叩く）
-                for (let key in sounds) {
-                    if (key !== "START") {
-                        sounds[key].muted = true;
-                        sounds[key].play().then(() => { 
-                            sounds[key].pause(); 
-                            sounds[key].currentTime = 0;
-                            sounds[key].muted = false; 
-                        }).catch(() => {});
-                    }
-                }
+                // iPhone対策：まずは一番鳴らしたい start.mp3 だけを再生
+                sounds["START"].play();
 
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
@@ -75,11 +66,6 @@
                 await bluetoothChar.startNotifications();
                 
                 document.getElementById('status').innerText = "✅ 接続中";
-                
-                // start.mp3 を確実に再生
-                sounds["START"].muted = false;
-                sounds["START"].currentTime = 0;
-                sounds["START"].play().catch(e => console.log("Start sound failed", e));
 
                 bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
@@ -115,20 +101,30 @@
             let textColor = "#fff";
             let audioKey = "";
 
-            // --- 判定ロジック V1.30 (8玉境界修正) ---
-            if (diff >= 28.3) { // 8玉(30.0g)以上の範囲は紫色
-                label = getTamaNum(diff); bgColor = "#800080"; audioKey = label;
-            } else if (diff >= 21.0) { // 11玉〜9玉の範囲は黄緑色
-                label = getTamaNum(diff); bgColor = "#adff2f"; audioKey = label;
-            } else if (diff >= 19.3) { // 12玉(20.0g)
-                label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12";
-            } else if (diff >= 15.5) { // 2L
+            // --- 判定ロジック V1.31 (8玉問題を優先解決) ---
+            if (diff >= 28.3) { 
+                // 8玉(30g)〜3玉(80g)の範囲：紫色
+                label = getTamaNum(diff); 
+                bgColor = "#800080"; 
+                audioKey = label;
+            } else if (diff >= 21.0) { 
+                // 11玉〜9玉の範囲：黄緑色
+                label = getTamaNum(diff); 
+                bgColor = "#adff2f"; 
+                audioKey = label;
+            } else if (diff >= 19.3) { 
+                // 12玉(20.0g)：黄色
+                label = "12"; 
+                bgColor = "#ffff00"; 
+                textColor = "#000"; 
+                audioKey = "12";
+            } else if (diff >= 15.5) { 
                 label = "2L"; bgColor = "#ff0000"; audioKey = "2L";
-            } else if (diff >= 11.5) { // L
+            } else if (diff >= 11.5) { 
                 label = "L"; bgColor = "#0000ff"; audioKey = "L";
-            } else if (diff >= 10.0) { // M
+            } else if (diff >= 10.0) { 
                 label = "M"; bgColor = "#ff0000"; audioKey = "M";
-            } else if (diff >= 7.0) {  // S
+            } else if (diff >= 7.0) {  
                 label = "S"; bgColor = "#0000ff"; audioKey = "S";
             }
 
@@ -137,7 +133,11 @@
                 const key = audioKey.toUpperCase();
                 if(sounds[key]) {
                     sounds[key].currentTime = 0;
-                    sounds[key].play();
+                    sounds[key].play().catch(() => {
+                        // iPhoneで音が詰まった場合の予備
+                        sounds[key].load();
+                        sounds[key].play();
+                    });
                 }
             }
         }
@@ -148,10 +148,7 @@
             if (d >= 44.0) return "5";
             if (d >= 37.0) return "6";
             if (d >= 32.0) return "7";
-            if (d >= 28.3) return "8"; // 紫色の境界
-            if (d >= 25.3) return "9";
-            if (d >= 22.9) return "10";
-            return "11";
+            return "8"; // 28.3g以上32g未満はすべて8
         }
 
         function showFlash(text, color, tColor) {
