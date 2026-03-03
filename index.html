@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.27</title>
+    <title>イチゴ選別システム V1.28</title>
     <style>
         body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
         #status { color: #888; font-size: 14px; margin-bottom: 5px; }
@@ -42,6 +42,7 @@
         const sounds = {};
         const fileNames = ["2l", "l", "m", "s", "start"];
         
+        // 音声の事前読み込みのみ行う（再生はしない）
         fileNames.forEach(name => {
             const key = name.toUpperCase();
             sounds[key] = new Audio("./" + name + ".mp3");
@@ -55,17 +56,9 @@
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
-                // --- ★修正：無音でアンロック ---
-                for (let key in sounds) {
-                    const audio = sounds[key];
-                    const originalVolume = audio.volume;
-                    audio.volume = 0; // 一時的に無音
-                    audio.play().then(() => {
-                        audio.pause();
-                        audio.currentTime = 0;
-                        audio.volume = originalVolume; // 音量を戻す
-                    }).catch(() => {});
-                }
+                // --- ★修正：一括再生をやめ、個別に「準備完了」状態にする ---
+                // この操作だけで、以降のスクリプトからの play() が許可されます
+                sounds["START"].play(); // start.mp3 だけを鳴らす
 
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
@@ -77,10 +70,6 @@
                 await bluetoothChar.startNotifications();
                 
                 document.getElementById('status').innerText = "✅ 接続中";
-                
-                // 開始音（これだけ音を出す）
-                sounds["START"].volume = 1.0;
-                sounds["START"].play();
 
                 bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
@@ -117,6 +106,7 @@
             let sizeKey = "";
             let bgColor = "";
 
+            // S/Lは青、M/2Lは赤
             if (diff >= 15.5) { sizeKey = "2L"; bgColor = "#ff0000"; }
             else if (diff >= 12.0) { sizeKey = "L"; bgColor = "#0000ff"; }
             else if (diff >= 10.0) { sizeKey = "M"; bgColor = "#ff0000"; }
@@ -124,9 +114,14 @@
 
             if (sizeKey) {
                 showFlash(sizeKey, bgColor);
+                // 再生直前に load() を挟まないことで遅延を防ぐ
                 const audio = sounds[sizeKey];
                 audio.currentTime = 0;
-                audio.play();
+                audio.play().catch(e => {
+                    // もし再生がブロックされたらここで再読み込みを試みる
+                    audio.load();
+                    audio.play();
+                });
             }
         }
 
@@ -135,12 +130,12 @@
             overlay.innerText = text;
             overlay.style.backgroundColor = color;
             overlay.style.display = 'flex';
-            setTimeout(() => { overlay.style.display = 'none'; }, 1000); // 1秒で消す
+            setTimeout(() => { overlay.style.display = 'none'; }, 1000);
         }
 
         document.getElementById('tareBtn').onclick = () => {
             stableWeight = currentWeight;
-            document.getElementById('diff-display').innerText = "基準セット完了";
+            document.getElementById('diff-display').innerText = "基準リセット完了";
         };
     </script>
 </body>
