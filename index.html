@@ -3,71 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.20</title>
+    <title>イチゴ選別システム V1.21</title>
     <style>
         body { 
-            background-color: #000; 
-            color: #fff; 
-            text-align: center; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            padding: 10px; 
-            overflow: hidden; 
-            touch-action: manipulation;
+            background-color: #000; color: #fff; text-align: center; 
+            font-family: -apple-system, sans-serif; padding: 10px; overflow: hidden; 
         }
-        #status { 
-            color: #888; 
-            font-size: 14px; 
-            margin-top: 5px; 
-        }
-        #weight { 
-            font-size: 110px; 
-            font-weight: bold; 
-            color: #00ff00; 
-            margin: 5px 0; 
-            line-height: 1.1;
-            font-variant-numeric: tabular-nums;
-        }
+        #status { color: #888; font-size: 14px; margin-top: 5px; }
+        #weight { font-size: 110px; font-weight: bold; color: #00ff00; margin: 5px 0; line-height: 1.1; }
         #weight span { font-size: 30px; margin-left: 5px; }
+        #size-display { font-size: 70px; font-weight: bold; color: #ffeb3b; margin-bottom: 20px; height: 80px; }
         
-        #size-display { 
-            font-size: 70px; 
-            font-weight: bold; 
-            color: #ffeb3b; 
-            margin-bottom: 20px; 
-            height: 80px;
-            text-shadow: 0 0 15px rgba(255, 235, 59, 0.5);
-        }
-        
-        .btn-container { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            gap: 15px; 
-        }
+        .btn-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
         .my-button { 
-            display: block; 
-            width: 90%; 
-            max-width: 400px; 
-            height: 85px; 
-            font-size: 24px; 
-            font-weight: bold; 
-            border-radius: 20px; 
-            border: none; 
-            cursor: pointer; 
-            color: white;
-            transition: opacity 0.2s;
+            display: block; width: 90%; max-width: 400px; height: 85px; 
+            font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white;
         }
-        .my-button:active { opacity: 0.7; }
+        #connectBtn { background-color: #28a745; }
+        #tareBtn { background-color: #ff8c00; }
         
-        #connectBtn { background-color: #28a745; box-shadow: 0 4px #1e7e34; }
-        #tareBtn { background-color: #ff8c00; box-shadow: 0 4px #d97700; }
-        
-        .info-table {
-            margin: 20px auto;
-            font-size: 12px;
-            color: #aaa;
-            border-collapse: collapse;
-        }
+        .info-table { margin: 15px auto; font-size: 12px; color: #aaa; border-collapse: collapse; }
         .info-table td { border: 1px solid #333; padding: 4px 8px; }
     </style>
 </head>
@@ -88,13 +43,26 @@
     <script>
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+        
+        // --- 音声ファイルの設定 ---
+        // GitHubのリポジトリ構造に合わせてここを変更してください
+        const AUDIO_BASE_URL = "strawberry-size/"; 
+        const sounds = {
+            "2L": new Audio(AUDIO_BASE_URL + "2l.mp3"),
+            "L":  new Audio(AUDIO_BASE_URL + "l.mp3"),
+            "M":  new Audio(AUDIO_BASE_URL + "m.mp3"),
+            "S":  new Audio(AUDIO_BASE_URL + "s.mp3")
+        };
+
         let bluetoothChar = null;
         let lastAnnouncedWeight = 0;
-        const synth = window.speechSynthesis;
 
         // 接続処理
         document.getElementById('connectBtn').onclick = async () => {
             try {
+                // iPhone対策: ユーザー操作時にすべての音声を一度「ロード」して再生許可を得る
+                Object.values(sounds).forEach(s => { s.load(); });
+
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
                     optionalServices: [SERVICE_UUID]
@@ -112,81 +80,49 @@
                     const weight = parseFloat(val);
                     updateDisplay(weight);
                 });
-                
-                // iPhoneの音声有効化のためのダミー
-                const uttr = new SpeechSynthesisUtterance("システム起動しました");
-                uttr.lang = "ja-JP";
-                synth.speak(uttr);
 
-            } catch (err) { 
-                console.error(err);
-                alert("接続に失敗しました。BluetoothがONか確認してください。"); 
-            }
+            } catch (err) { alert("エラー: " + err); }
         };
 
-        // 表示更新と判定ロジック
         function updateDisplay(w) {
             document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
             
-            // 5g未満は「何も乗っていない」とみなして判定リセット
             if (w < 5.0) {
                 lastAnnouncedWeight = 0;
                 document.getElementById('size-display').innerText = "---";
-                document.getElementById('size-display').style.color = "#ffeb3b";
                 return;
             }
 
-            // 前回の判定から3g以上の変化があった場合のみ読み上げる
             if (Math.abs(w - lastAnnouncedWeight) > 3.0) {
-                announceSize(w);
+                playSizeAudio(w);
                 lastAnnouncedWeight = w;
             }
         }
 
-        // サイズ判定と音声合成
-        function announceSize(w) {
+        function playSizeAudio(w) {
             let rounded = Math.round(w * 10) / 10;
-            let size = "";
+            let sizeKey = "";
             let color = "#fff";
 
-            // V1.20 基準：パック平均果重に基づく設定
-            if (rounded >= 15.5) { 
-                size = "2エル"; color = "#ff4757"; // 表示は2L、読みは2エル
-            } else if (rounded >= 12.0) { 
-                size = "エル"; color = "#ffa502"; 
-            } else if (rounded >= 10.0) { 
-                size = "エム"; color = "#2ed573"; 
-            } else if (rounded >= 7.0) { 
-                size = "エス"; color = "#1e90ff"; 
-            } else { 
-                size = "規格外"; color = "#888"; 
+            if (rounded >= 15.5) { sizeKey = "2L"; color = "#ff4757"; }
+            else if (rounded >= 12.0) { sizeKey = "L"; color = "#ffa502"; }
+            else if (rounded >= 10.0) { sizeKey = "M"; color = "#2ed573"; }
+            else if (rounded >= 7.0)  { sizeKey = "S"; color = "#1e90ff"; }
+
+            if (sizeKey) {
+                document.getElementById('size-display').innerText = sizeKey + " サイズ";
+                document.getElementById('size-display').style.color = color;
+
+                // MP3再生
+                const audio = sounds[sizeKey];
+                audio.currentTime = 0; // 最初から再生
+                audio.play().catch(e => console.log("Audio Play Error:", e));
             }
-
-            const displayLabel = size.replace("エル","L").replace("エム","M").replace("エス","S");
-            document.getElementById('size-display').innerText = displayLabel + " サイズ";
-            document.getElementById('size-display').style.color = color;
-
-            // 音声合成の設定
-            const text = `${rounded.toFixed(1)}、${size}`;
-            const uttr = new SpeechSynthesisUtterance(text);
-            uttr.lang = 'ja-JP';
-            uttr.rate = 1.4; // 高速作業用
-            uttr.pitch = 1.0;
-            
-            synth.cancel(); // 前の音声を止めて最新を優先
-            synth.speak(uttr);
         }
 
-        // 0gセット（風袋引き）
         document.getElementById('tareBtn').onclick = async () => {
             if (bluetoothChar) {
-                try {
-                    await bluetoothChar.writeValue(new Uint8Array([0x31])); // '1'を送信
-                } catch (err) {
-                    alert("通信失敗: " + err);
-                }
-            } else {
-                alert("先に接続してください");
+                await bluetoothChar.writeValue(new Uint8Array([0x31]));
             }
         };
     </script>
