@@ -2,40 +2,36 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別 最終テスト版</title>
+    <title>ボタン強制表示テスト</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: white; padding: 20px; }
-        #weight { font-size: 80px; font-weight: bold; color: red; margin: 20px 0; border: 2px solid #ccc; }
-        /* ボタンを最初から絶対に見えるようにする設定 */
+        /* 背景をわざと真っ黒にして、更新されたか一目でわかるようにします */
+        body { background-color: black !important; color: white; text-align: center; }
         .my-button { 
             display: block !important; 
-            width: 100%; 
-            margin: 10px 0; 
-            padding: 20px; 
-            font-size: 25px; 
-            color: white; 
-            border: none; 
-            border-radius: 10px;
+            visibility: visible !important;
+            width: 90%; 
+            height: 100px; /* ボタンを巨大に */
+            margin: 20px auto; 
+            font-size: 30px;
+            font-weight: bold;
+            border-radius: 20px;
         }
-        #connectBtn { background-color: #28a745; } /* 緑 */
-        #tareBtn { background-color: #ffc107; color: black; } /* 黄色 */
     </style>
 </head>
 <body>
-    <h1>イチゴ選別くん</h1>
+    <h1>画面が黒ければ更新成功です</h1>
     
-    <div id="weight">0.0 g</div>
+    <button id="connectBtn" class="my-button" style="background-color: #28a745 !important;">1. 接続する</button>
     
-    <button id="connectBtn" class="my-button">1. 接続する</button>
-    <button id="tareBtn" class="my-button">2. 0gにリセット(風袋)</button>
+    <button id="tareBtn" class="my-button" style="background-color: #ff8c00 !important;">2. オレンジ色のボタン</button>
+
+    <div id="weight" style="font-size: 50px;">0.0 g</div>
 
     <script>
-        // (JavaScript部分は前回と同じですが、確実にボタンを動かします)
+        // JavaScriptの内容は同じ（中略）
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         let bluetoothChar = null;
-
         document.getElementById('connectBtn').onclick = async () => {
             try {
                 const device = await navigator.bluetooth.requestDevice({
@@ -45,23 +41,19 @@
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
-                alert("接続に成功しました！");
-                
+                alert("接続成功！");
                 bluetoothChar.startNotifications();
                 bluetoothChar.oncharacteristicvaluechanged = (e) => {
                     const val = new TextDecoder().decode(e.target.value);
                     document.getElementById('weight').innerText = parseFloat(val).toFixed(1) + " g";
                 };
-            } catch (err) { alert("接続失敗: " + err); }
+            } catch (err) { alert(err); }
         };
-
         document.getElementById('tareBtn').onclick = async () => {
             if (bluetoothChar) {
-                const data = new Uint8Array([0x31]); // '1'を送信
+                const data = new Uint8Array([0x31]);
                 await bluetoothChar.writeValue(data);
-            } else {
-                alert("先に接続してください");
-            }
+            } else { alert("先に接続してください"); }
         };
     </script>
 </body>
