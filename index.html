@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.24</title>
+    <title>イチゴ選別システム V1.25</title>
     <style>
         body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; }
         #status { color: #888; font-size: 14px; margin-bottom: 5px; }
-        #weight { font-size: 100px; font-weight: bold; color: #00ff00; margin: 10px 0; line-height: 1; }
+        #weight { font-size: 100px; font-weight: bold; color: #00ff00; margin: 10px 0; line-height: 1.1; }
+        #weight span { font-size: 30px; margin-left: 5px; }
         #diff-display { font-size: 35px; color: #ff4757; height: 40px; margin-top: 5px; }
         #size-display { font-size: 75px; font-weight: bold; color: #ffeb3b; height: 90px; margin-top: 10px; }
         .my-button { width: 95%; max-width: 400px; height: 85px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
@@ -30,18 +31,17 @@
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         
-        // --- 音声ファイルのURL設定 ---
-        // GitHub Pagesで公開している場合、相対パス "./" で自身のディレクトリを参照します
-        const AUDIO_BASE_URL = "./"; 
-
+        // --- 音声ファイル読み込み ---
         const sounds = {};
-        ["2l", "l", "m", "s"].forEach(id => {
-            const key = id.toUpperCase();
-            // 小文字のファイル名で読み込み
-            sounds[key] = new Audio(AUDIO_BASE_URL + id + ".mp3");
+        const fileNames = ["2l", "l", "m", "s"];
+        
+        fileNames.forEach(name => {
+            const key = name.toUpperCase();
+            // パスをカレントディレクトリ直下に修正
+            sounds[key] = new Audio("./" + name + ".mp3");
             sounds[key].load();
             sounds[key].onerror = () => {
-                document.getElementById('audio-debug').innerText = `読込失敗: ${id}.mp3`;
+                document.getElementById('audio-debug').innerText = `エラー: ${name}.mp3 が見つかりません`;
             };
         });
 
@@ -52,7 +52,7 @@
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
-                // iPhoneの再生制限解除（全音声を一瞬鳴らす）
+                // iPhoneの音声再生制限を解除
                 for (let key in sounds) {
                     const a = sounds[key];
                     a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
@@ -67,15 +67,15 @@
                 bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
                 await bluetoothChar.startNotifications();
                 
-                document.getElementById('status').innerText = "✅ 稼働中";
-                document.getElementById('audio-debug').innerText = "音声準備完了";
+                document.getElementById('status').innerText = "✅ 接続中";
+                document.getElementById('audio-debug').innerText = "音声OK";
                 document.getElementById('audio-debug').style.color = "#28a745";
 
                 bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
                     processWeight(parseFloat(val));
                 });
-            } catch (err) { alert("接続エラー: " + err); }
+            } catch (err) { alert("Bluetooth接続エラー: " + err); }
         };
 
         function processWeight(w) {
@@ -83,17 +83,16 @@
             document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
 
             weightHistory.push(w);
-            if (weightHistory.length > 3) weightHistory.shift();
+            if (weightHistory.length > 5) weightHistory.shift(); // 安定判定をより慎重に（約1.5秒）
 
-            if (weightHistory.length === 3) {
+            if (weightHistory.length >= 3) {
                 const maxW = Math.max(...weightHistory);
                 const minW = Math.min(...weightHistory);
                 
-                // 1秒間の変動が0.2g以内なら「静止」と判定
+                // 数値が安定（変動0.2g以内）
                 if (maxW - minW < 0.2) {
                     if (Math.abs(stableWeight - w) > 0.5) { 
-                        // 基準値より減ったときだけサイズ判定
-                        if (stableWeight > w) {
+                        if (stableWeight > w) { // 減少（引き抜き）を検知
                             checkDifference(stableWeight, w);
                         }
                         stableWeight = w;
@@ -104,7 +103,6 @@
 
         function checkDifference(oldW, newW) {
             const diff = oldW - newW;
-            // 5g未満は誤差として無視
             if (diff < 5.0) return;
 
             document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減";
@@ -112,7 +110,7 @@
             let sizeKey = "";
             let color = "#fff";
 
-            // 引き抜き計量用判定基準
+            // 判定基準
             if (diff >= 15.5) { sizeKey = "2L"; color = "#ff4757"; }
             else if (diff >= 12.0) { sizeKey = "L"; color = "#ffa502"; }
             else if (diff >= 10.0) { sizeKey = "M"; color = "#2ed573"; }
@@ -125,7 +123,7 @@
                 const audio = sounds[sizeKey];
                 audio.currentTime = 0;
                 audio.play().catch(e => {
-                    document.getElementById('audio-debug').innerText = "再生エラー";
+                    document.getElementById('audio-debug').innerText = "再生ブロック";
                 });
             }
         }
