@@ -6,25 +6,31 @@
     <title>イチゴ選別くん 0.1g</title>
     <style>
         body { font-family: sans-serif; text-align: center; background: #fff5f5; padding: 20px; }
-        #weight { font-size: 100px; font-weight: bold; color: #ff4757; margin: 20px 0; }
-        .btn-container { display: flex; justify-content: center; gap: 10px; }
-        button { font-size: 20px; padding: 15px 30px; border: none; border-radius: 10px; cursor: pointer; color: white; }
+        #weight { font-size: 80px; font-weight: bold; color: #ff4757; margin: 20px 0; }
+        .btn-container { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+        button { font-size: 22px; padding: 15px 40px; border: none; border-radius: 50px; cursor: pointer; color: white; width: 80%; max-width: 300px; box-shadow: 0 4px rgba(0,0,0,0.2); }
         #connectBtn { background: #2ed573; }
-        #tareBtn { background: #ffa502; display: none; } /* 接続されるまで隠す */
+        /* 初期状態は半透明でクリック不可に */
+        #tareBtn { background: #ffa502; opacity: 0.5; }
+        button:active { transform: translateY(2px); box-shadow: none; }
     </style>
 </head>
 <body>
     <h1>イチゴ選別システム</h1>
     <div id="weight">0.0<span> g</span></div>
+    
     <div class="btn-container">
-        <button id="connectBtn">計測開始（接続）</button>
-        <button id="tareBtn">0gセット（風袋引き）</button>
+        <button id="connectBtn">1. 計測開始（接続）</button>
+        <button id="tareBtn">2. 0gセット（風袋引き）</button>
     </div>
+
+    <p id="status" style="margin-top:20px; color:#666;">Bluetoothを接続してください</p>
 
     <script>
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         let bluetoothChar = null;
+        let lastAnnouncedWeight = 0;
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
@@ -36,22 +42,56 @@
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
-                document.getElementById('tareBtn').style.display = "block";
+                // 接続できたらボタンを有効化
+                document.getElementById('tareBtn').style.opacity = "1.0";
+                document.getElementById('status').innerText = "✅ 接続完了！イチゴを乗せてください";
+                
                 bluetoothChar.startNotifications();
                 bluetoothChar.oncharacteristicvaluechanged = (e) => {
                     const val = new TextDecoder().decode(e.target.value);
-                    document.getElementById('weight').innerHTML = `${parseFloat(val).toFixed(1)}<span> g</span>`;
+                    const weight = parseFloat(val);
+                    document.getElementById('weight').innerHTML = `${weight.toFixed(1)}<span> g</span>`;
+                    
+                    // --- 読み上げロジック ---
+                    if (weight > 10 && Math.abs(weight - lastAnnouncedWeight) > 5) {
+                        announce(weight);
+                        lastAnnouncedWeight = weight;
+                    } else if (weight < 3) {
+                        lastAnnouncedWeight = 0; // 秤から下ろしたらリセット
+                    }
                 };
-            } catch (err) { alert(err); }
-        };
-
-        // 風袋引きボタンの処理
-        document.getElementById('tareBtn').onclick = async () => {
-            if (bluetoothChar) {
-                const data = new Uint8Array([0x31]); // 文字列 '1' を送信
-                await bluetoothChar.writeValue(data);
+            } catch (err) { 
+                alert("接続に失敗しました: " + err); 
             }
         };
+
+        // 風袋引き（0gセット）ボタン
+        document.getElementById('tareBtn').onclick = async () => {
+            if (bluetoothChar) {
+                try {
+                    const data = new Uint8Array([0x31]); // '1' を送信
+                    await bluetoothChar.writeValue(data);
+                    console.log("Tare command sent");
+                } catch (err) {
+                    alert("送信エラー: " + err);
+                }
+            } else {
+                alert("先に接続ボタンを押してください");
+            }
+        };
+
+        // 読み上げ関数
+        function announce(w) {
+            let rounded = Math.round(w);
+            let size = "";
+            if (rounded >= 28) size = "、2Lサイズ。";
+            else if (rounded >= 20) size = "、Lサイズ。";
+            else if (rounded >= 15) size = "、Mサイズ。";
+
+            const msg = new SpeechSynthesisUtterance(`${rounded}グラム${size}`);
+            msg.lang = "ja-JP";
+            window.speechSynthesis.speak(msg);
+        }
     </script>
 </body>
 </html>
