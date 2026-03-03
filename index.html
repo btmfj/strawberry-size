@@ -2,54 +2,35 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>イチゴ選別システム V1.03</title>
+    <title>イチゴ選別システム V1.07</title>
     <style>
-        /* 背景を黒にして、更新されたことを確定させます */
         body { background-color: #000 !important; color: #fff !important; text-align: center; font-family: sans-serif; padding: 20px; }
         #weight { font-size: 80px; font-weight: bold; color: #ff4757; margin: 20px 0; border: 3px solid #333; padding: 20px; border-radius: 20px; background: #111; }
-        
         .btn-container { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-        
-        /* ボタンを独立させ、常に表示されるようにします */
         .my-button { 
-            display: block !important; 
-            width: 90% !important; 
-            max-width: 350px; 
-            height: 90px; 
-            font-size: 26px; 
-            font-weight: bold; 
-            border-radius: 20px; 
-            border: none; 
-            cursor: pointer; 
-            color: white;
+            display: block !important; width: 90% !important; max-width: 400px; height: 90px; 
+            font-size: 26px; font-weight: bold; border-radius: 20px; border: none; cursor: pointer; color: white;
             box-shadow: 0 6px rgba(255,255,255,0.2);
-            -webkit-appearance: none; /* iPhone対策 */
         }
-        
-        #connectBtn { background-color: #2ed573 !important; } /* 鮮やかな緑 */
-        #tareBtn { background-color: #ff8c00 !important; }    /* 鮮やかなオレンジ */
-        
-        button:active { transform: translateY(4px); box-shadow: none; }
-        span { font-size: 30px; margin-left: 10px; }
+        #connectBtn { background-color: #28a745 !important; }
+        #tareBtn { background-color: #ff8c00 !important; }
     </style>
 </head>
 <body>
-    <h1>イチゴ選別システム V1.03</h1>
-    
-    <div id="weight">0.0<span> g</span></div>
+    <h1>イチゴ選別システム V1.07</h1>
+    <div id="weight">待機中<span> g</span></div>
     
     <div class="btn-container">
         <button id="connectBtn" class="my-button">① 接続する</button>
-        <button id="tareBtn" class="my-button">② 0gにリセット</button>
+        <button id="tareBtn" class="my-button">② 0gリセット</button>
     </div>
 
-    <p id="status" style="margin-top:30px; color: #888;">背景が黒ければ最新のV1.03です</p>
+    <p id="status" style="margin-top:30px; color: #888;">接続ボタンを押してください</p>
 
     <script>
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         let bluetoothChar = null;
-        let lastAnnouncedWeight = 0;
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
@@ -57,48 +38,38 @@
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
                     optionalServices: [SERVICE_UUID]
                 });
+                
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
                 
-                document.getElementById('status').innerText = "✅ 接続完了！";
-                alert("ESP32と接続しました");
+                // 通知（Notify）を明示的に開始
+                await bluetoothChar.startNotifications();
                 
-                bluetoothChar.startNotifications();
-                bluetoothChar.oncharacteristicvaluechanged = (e) => {
-                    const val = new TextDecoder().decode(e.target.value);
-                    const weight = parseFloat(val);
-                    document.getElementById('weight').innerHTML = `${weight.toFixed(1)}<span> g</span>`;
-                    
-                    if (weight > 10 && Math.abs(weight - lastAnnouncedWeight) > 5) {
-                        announce(weight);
-                        lastAnnouncedWeight = weight;
-                    } else if (weight < 3) {
-                        lastAnnouncedWeight = 0;
-                    }
-                };
-            } catch (err) { alert("接続エラー: " + err); }
+                // データが届いた時の処理を登録
+                bluetoothChar.addEventListener('characteristicvaluechanged', (event) => {
+                    const value = new TextDecoder().decode(event.target.value);
+                    console.log("Received:", value);
+                    // 小数点第1位まで表示
+                    document.getElementById('weight').innerHTML = `${parseFloat(value).toFixed(1)}<span> g</span>`;
+                });
+
+                document.getElementById('status').innerText = "✅ 接続中：データ受信を開始しました";
+                document.getElementById('weight').innerText = "0.0 g";
+                
+            } catch (err) { 
+                alert("接続失敗: " + err); 
+                document.getElementById('status').innerText = "❌ エラーが発生しました";
+            }
         };
 
         document.getElementById('tareBtn').onclick = async () => {
             if (bluetoothChar) {
                 try {
-                    // ESP32へ'1'を送ってtare()を実行
                     await bluetoothChar.writeValue(new Uint8Array([0x31]));
-                    console.log("Tare Sent");
                 } catch (err) { alert("リセット失敗: " + err); }
-            } else {
-                alert("先に「① 接続する」を押してください");
-            }
+            } else { alert("先に接続してください"); }
         };
-
-        function announce(w) {
-            let rounded = Math.round(w);
-            let size = rounded >= 28 ? "、2Lサイズ" : (rounded >= 20 ? "、Lサイズ" : "、Mサイズ");
-            const msg = new SpeechSynthesisUtterance(`${rounded}グラム${size}`);
-            msg.lang = "ja-JP";
-            window.speechSynthesis.speak(msg);
-        }
     </script>
 </body>
 </html>
