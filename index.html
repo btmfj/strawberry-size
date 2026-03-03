@@ -3,48 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.22</title>
+    <title>イチゴ選別システム V1.23</title>
     <style>
         body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; }
-        #status { color: #888; font-size: 14px; }
-        #weight { font-size: 100px; font-weight: bold; color: #00ff00; margin: 10px 0; }
-        #diff-display { font-size: 40px; color: #ff4757; height: 50px; margin-bottom: 10px; }
-        #size-display { font-size: 70px; font-weight: bold; color: #ffeb3b; height: 80px; }
-        .my-button { width: 90%; max-width: 400px; height: 80px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
+        #status { color: #888; font-size: 14px; margin-bottom: 10px; }
+        #weight { font-size: 100px; font-weight: bold; color: #00ff00; margin: 10px 0; line-height: 1; }
+        #diff-display { font-size: 35px; color: #ff4757; height: 40px; }
+        #size-display { font-size: 70px; font-weight: bold; color: #ffeb3b; height: 80px; margin-top: 10px; }
+        .my-button { width: 90%; max-width: 400px; height: 80px; font-size: 22px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
         #connectBtn { background-color: #28a745; }
         #tareBtn { background-color: #ff8c00; }
+        #audio-debug { color: #ff4757; font-size: 12px; }
     </style>
 </head>
 <body>
     <div id="status">Bluetooth未接続</div>
-    <div id="weight">0.0<span>g</span></div>
+    <div id="audio-debug"></div> <div id="weight">0.0<span>g</span></div>
     <div id="diff-display">--.- g 減</div>
     <div id="size-display">---</div>
     
-    <button id="connectBtn" class="my-button">① 接続して開始</button>
+    <button id="connectBtn" class="my-button">① 接続・音声ON</button>
     <button id="tareBtn" class="my-button">② 基準リセット</button>
 
     <script>
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         
-        const AUDIO_BASE_URL = "strawberry-size/"; 
-        const sounds = {
-            "2L": new Audio(AUDIO_BASE_URL + "2l.mp3"),
-            "L":  new Audio(AUDIO_BASE_URL + "l.mp3"),
-            "M":  new Audio(AUDIO_BASE_URL + "m.mp3"),
-            "S":  new Audio(AUDIO_BASE_URL + "s.mp3")
-        };
+        // --- ★ここをチェック！ ---
+        // GitHub PagesのURLの末尾が「/」で終わるようにしてください
+        // 例: "https://[ユーザー名].github.io/[リポジトリ名]/strawberry-size/"
+        const AUDIO_BASE_URL = "./strawberry-size/"; 
+
+        const sounds = {};
+        ["2l", "l", "m", "s"].forEach(id => {
+            const key = id.toUpperCase();
+            sounds[key] = new Audio(AUDIO_BASE_URL + id + ".mp3");
+            // 読み込みエラー時の処理
+            sounds[key].onerror = () => {
+                document.getElementById('audio-debug').innerText = `エラー: ${id}.mp3 が見つかりません`;
+            };
+        });
 
         let bluetoothChar = null;
-        let baseWeight = 0;      // 基準となる重さ
-        let currentWeight = 0;   // 現在の重さ
-        let stableWeight = 0;    // 安定後の重さ
-        let weightHistory = [];  // 安定判定用履歴
+        let currentWeight = 0;
+        let stableWeight = 0;
+        let weightHistory = [];
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
-                Object.values(sounds).forEach(s => s.load());
+                // iPhone対策: ボタンクリック時に全音声を空再生して「ロック解除」
+                for (let key in sounds) {
+                    sounds[key].play().then(() => {
+                        sounds[key].pause();
+                        sounds[key].currentTime = 0;
+                    }).catch(e => console.log("Unlock failed", e));
+                }
+
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
                     optionalServices: [SERVICE_UUID]
@@ -53,20 +67,19 @@
                 const service = await server.getPrimaryService(SERVICE_UUID);
                 bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
                 await bluetoothChar.startNotifications();
-                document.getElementById('status').innerText = "✅ 稼働中（マイナス計量モード）";
+                document.getElementById('status').innerText = "✅ 接続完了！";
                 
                 bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
                     processWeight(parseFloat(val));
                 });
-            } catch (err) { alert(err); }
+            } catch (err) { alert("接続失敗: " + err); }
         };
 
         function processWeight(w) {
             currentWeight = w;
             document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
 
-            // 安定判定（直近3回 = 約1秒間の変動が0.2g以内か）
             weightHistory.push(w);
             if (weightHistory.length > 3) weightHistory.shift();
 
@@ -74,11 +87,12 @@
                 const maxW = Math.max(...weightHistory);
                 const minW = Math.min(...weightHistory);
                 
+                // 0.2g以内の変動なら「静止」とみなす
                 if (maxW - minW < 0.2) {
-                    // 数値が安定した！
                     if (Math.abs(stableWeight - w) > 0.5) { 
-                        // 前回の安定値から変化があった場合のみ処理
-                        checkDifference(stableWeight, w);
+                        if (stableWeight > w) { // 減った時だけ判定
+                            checkDifference(stableWeight, w);
+                        }
                         stableWeight = w;
                     }
                 }
@@ -86,9 +100,7 @@
         }
 
         function checkDifference(oldW, newW) {
-            const diff = oldW - newW; // 減った量
-            
-            // 5g未満の減少は無視（ノイズや微調整用）
+            const diff = oldW - newW;
             if (diff < 5.0) return;
 
             document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減";
@@ -96,18 +108,23 @@
             let sizeKey = "";
             let color = "#fff";
 
-            // ご提示の平均果重に基づく判定基準
             if (diff >= 15.5) { sizeKey = "2L"; color = "#ff4757"; }
             else if (diff >= 12.0) { sizeKey = "L"; color = "#ffa502"; }
             else if (diff >= 10.0) { sizeKey = "M"; color = "#2ed573"; }
             else if (diff >= 7.0)  { sizeKey = "S"; color = "#1e90ff"; }
 
-            if (sizeKey) {
+            if (sizeKey && sounds[sizeKey]) {
                 document.getElementById('size-display').innerText = sizeKey + " サイズ";
                 document.getElementById('size-display').style.color = color;
+                
                 const audio = sounds[sizeKey];
                 audio.currentTime = 0;
-                audio.play();
+                let playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        document.getElementById('audio-debug').innerText = "再生ブロックされました";
+                    });
+                }
             }
         }
 
