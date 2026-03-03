@@ -5,25 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>イチゴ選別くん 0.1g</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #fff5f5; color: #333; padding: 20px; }
-        #weight { font-size: 100px; font-weight: bold; color: #ff4757; margin: 30px 0; }
-        #status { font-size: 18px; color: #777; margin-bottom: 20px; }
-        button { font-size: 24px; padding: 20px 40px; background: #2ed573; color: white; border: none; border-radius: 50px; box-shadow: 0 4px #26af5f; cursor: pointer; }
-        button:active { transform: translateY(2px); box-shadow: none; }
+        body { font-family: sans-serif; text-align: center; background: #fff5f5; padding: 20px; }
+        #weight { font-size: 100px; font-weight: bold; color: #ff4757; margin: 20px 0; }
+        .btn-container { display: flex; justify-content: center; gap: 10px; }
+        button { font-size: 20px; padding: 15px 30px; border: none; border-radius: 10px; cursor: pointer; color: white; }
+        #connectBtn { background: #2ed573; }
+        #tareBtn { background: #ffa502; display: none; } /* 接続されるまで隠す */
     </style>
 </head>
 <body>
     <h1>イチゴ選別システム</h1>
-    <div id="status">Bluetoothを接続してください</div>
-    <div id="weight">0.0<span style="font-size: 40px;"> g</span></div>
-    <button id="connectBtn">計測開始（接続）</button>
+    <div id="weight">0.0<span> g</span></div>
+    <div class="btn-container">
+        <button id="connectBtn">計測開始（接続）</button>
+        <button id="tareBtn">0gセット（風袋引き）</button>
+    </div>
 
     <script>
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-        let lastAnnouncedWeight = 0;
+        let bluetoothChar = null;
 
-        document.getElementById('connectBtn').addEventListener('click', async () => {
+        document.getElementById('connectBtn').onclick = async () => {
             try {
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
@@ -31,43 +34,24 @@
                 });
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                const char = await service.getCharacteristic(CHARACTERISTIC_UUID);
+                bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
-                document.getElementById('status').innerText = "✅ 接続中 (0.1g単位)";
-                char.startNotifications();
-                char.addEventListener('characteristicvaluechanged', (e) => {
+                document.getElementById('tareBtn').style.display = "block";
+                bluetoothChar.startNotifications();
+                bluetoothChar.oncharacteristicvaluechanged = (e) => {
                     const val = new TextDecoder().decode(e.target.value);
-                    const weight = parseFloat(val); // 小数として取得
-                    
-                    // 画面表示は小数点第1位まで
-                    document.getElementById('weight').innerHTML = `${weight.toFixed(1)}<span style="font-size: 40px;"> g</span>`;
-                    
-                    // 読み上げロジック（15g以上で、前回読み上げから3g以上変化した時）
-                    if (weight > 15 && Math.abs(weight - lastAnnouncedWeight) > 3) {
-                        announce(weight);
-                        lastAnnouncedWeight = weight;
-                    } else if (weight < 5) {
-                        lastAnnouncedWeight = 0;
-                    }
-                });
-            } catch (err) {
-                alert("接続エラー: " + err);
+                    document.getElementById('weight').innerHTML = `${parseFloat(val).toFixed(1)}<span> g</span>`;
+                };
+            } catch (err) { alert(err); }
+        };
+
+        // 風袋引きボタンの処理
+        document.getElementById('tareBtn').onclick = async () => {
+            if (bluetoothChar) {
+                const data = new Uint8Array([0x31]); // 文字列 '1' を送信
+                await bluetoothChar.writeValue(data);
             }
-        });
-
-        function announce(w) {
-            // 読み上げは整数の方が聞き取りやすいため四捨五入
-            let rounded = Math.round(w);
-            let size = "規格外です";
-            if (rounded >= 28) size = "特大、2Lです";
-            else if (rounded >= 20) size = "Lサイズです";
-            else if (rounded >= 15) size = "Mサイズです";
-
-            const msg = new SpeechSynthesisUtterance(`${rounded}グラム。${size}`);
-            msg.lang = "ja-JP";
-            msg.rate = 1.2;
-            window.speechSynthesis.speak(msg);
-        }
+        };
     </script>
 </body>
 </html>
