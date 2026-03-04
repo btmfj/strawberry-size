@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.36</title>
+    <title>はよ選果 V1.37</title>
     <style>
         body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
         #status { color: #888; font-size: 14px; margin-bottom: 5px; }
@@ -14,14 +14,14 @@
         #flash-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             display: none; align-items: center; justify-content: center;
-            z-index: 100; font-size: 180px; font-weight: bold;
+            z-index: 100; font-size: 140px; font-weight: bold;
         }
 
         .btn-container { position: relative; z-index: 10; }
         .my-button { width: 95%; max-width: 400px; height: 85px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
         #connectBtn { background-color: #28a745; box-shadow: 0 4px #1e7e34; }
         #tareBtn { background-color: #ff8c00; box-shadow: 0 4px #d97700; }
-        #wake-lock-video { position: absolute; width: 1px; height: 1px; opacity: 0.01; }
+        #wake-lock-video { position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -31,7 +31,7 @@
     <div id="weight">0.0<span>g</span></div>
     <div id="diff-display">--.- g 減</div>
     <div class="btn-container">
-        <button id="connectBtn" class="my-button">① 接続・開始</button>
+        <button id="connectBtn" class="my-button">① 接続・開始（スリープ防止）</button>
         <button id="tareBtn" class="my-button">② 基準リセット</button>
     </div>
 
@@ -40,11 +40,16 @@
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         
         const sounds = {};
-        const fileNames = ["2l", "l", "m", "s", "start", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+        // 新しい音声ファイル名リスト
+        const audioFiles = {
+            "START": "start.mp3", "SD": "sd.mp3", "SS": "ss.mp3", "MD": "md.mp3", "MS": "ms.mp3",
+            "LD": "ld.mp3", "LS": "ls.mp3", "2LD": "2ld.mp3", "2LS": "2ls.mp3",
+            "12": "12.mp3", "11": "11.mp3", "10": "10.mp3", "9": "9.mp3",
+            "8": "8.mp3", "7": "7.mp3", "6": "6.mp3", "5": "5.mp3", "4": "4.mp3", "3": "3.mp3"
+        };
         
-        fileNames.forEach(name => {
-            const key = name.toUpperCase();
-            sounds[key] = new Audio("./" + name + ".mp3");
+        Object.keys(audioFiles).forEach(key => {
+            sounds[key] = new Audio("./" + audioFiles[key]);
             sounds[key].load();
         });
 
@@ -52,17 +57,27 @@
         let currentWeight = 0;
         let stableWeight = 0;
         let weightHistory = [];
+        let wakeLock = null;
 
-        function enableWakeLock() {
+        // スリープ防止（二段構え）
+        async function requestWakeLock() {
+            // 1. Screen Wake Lock API (推奨)
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock is active');
+                } catch (err) { console.error(`${err.name}, ${err.message}`); }
+            }
+            // 2. 予備：ビデオ再生ハック
             const video = document.getElementById('wake-lock-video');
             video.src = "data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAZptb292AAAAbG12aGQAAAAA389pS9/PaUvAAABkAAACWwABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAGGlvZHMAAAAAEAAf7v8AAQAAbWFpbg==";
-            video.play().catch(e => console.log("WakeLock Failed", e));
+            video.play();
         }
 
         document.getElementById('connectBtn').onclick = async () => {
             try {
                 sounds["START"].play();
-                enableWakeLock();
+                requestWakeLock();
 
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32_Strawberry_Scale' }],
@@ -73,7 +88,7 @@
                 bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
                 await bluetoothChar.startNotifications();
                 
-                document.getElementById('status').innerText = "✅ 稼働中";
+                document.getElementById('status').innerText = "✅ 稼働中（スリープ防止中）";
 
                 bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
@@ -109,38 +124,48 @@
             let textColor = "#fff";
             let audioKey = "";
 
-            // --- 判定ロジック V1.36 ---
+            // --- 判定ロジック V1.37 ---
             if (diff >= 25.35) { 
-                label = getTamaNumPurple(diff); 
-                bgColor = "#800080"; 
-                audioKey = label;
+                // 9玉〜3玉：ピンクバック
+                label = getTamaNumPink(diff); bgColor = "#ff69b4"; audioKey = label;
             } else if (diff >= 20.9) { 
-                label = getTamaNumGreen(diff); 
-                bgColor = "#008000"; 
-                audioKey = label;
+                // 11玉〜10玉：緑バック
+                label = getTamaNumGreen(diff); bgColor = "#008000"; audioKey = label;
             } else if (diff >= 19.25) { 
+                // 12玉：黄色バック
                 label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12";
-            } else if (diff >= 15.2) { // 13玉(18.5)と17玉(14.1)の間
-                label = "2L"; bgColor = "#ff0000"; audioKey = "2L";
-            } else if (diff >= 11.5) { 
-                label = "L"; bgColor = "#0000ff"; audioKey = "L";
+            } else if (diff >= 15.25) { 
+                // 2L大・小：赤バック
+                if (diff >= 17.8) { label = "2L大"; audioKey = "2LD"; }
+                else { label = "2L小"; audioKey = "2LS"; }
+                bgColor = "#ff0000";
+            } else if (diff >= 11.75) { 
+                // L大・小：青バック
+                if (diff >= 13.7) { label = "L大"; audioKey = "LD"; }
+                else { label = "L小"; audioKey = "LS"; }
+                bgColor = "#0000ff";
             } else if (diff >= 9.5) { 
-                label = "M"; bgColor = "#ff0000"; audioKey = "M";
+                // M大・小：赤バック
+                if (diff >= 10.65) { label = "M大"; audioKey = "MD"; }
+                else { label = "M小"; audioKey = "MS"; }
+                bgColor = "#ff0000";
             } else if (diff >= 7.0) {  
-                label = "S"; bgColor = "#0000ff"; audioKey = "S";
+                // S大・小：青バック
+                if (diff >= 8.15) { label = "S大"; audioKey = "SD"; }
+                else { label = "S小"; audioKey = "SS"; }
+                bgColor = "#0000ff";
             }
 
             if (label) {
                 showFlash(label, bgColor, textColor);
-                const key = audioKey.toUpperCase();
-                if(sounds[key]) {
-                    sounds[key].currentTime = 0;
-                    sounds[key].play();
+                if(sounds[audioKey]) {
+                    sounds[audioKey].currentTime = 0;
+                    sounds[audioKey].play();
                 }
             }
         }
 
-        function getTamaNumPurple(d) {
+        function getTamaNumPink(d) {
             if (d >= 70.0) return "3";
             if (d >= 54.0) return "4";
             if (d >= 44.0) return "5";
@@ -168,6 +193,13 @@
             stableWeight = currentWeight;
             document.getElementById('diff-display').innerText = "基準リセット";
         };
+
+        // タブが戻ってきたときにWakeLockを再取得
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                wakeLock = await navigator.wakeLock.request('screen');
+            }
+        });
     </script>
 </body>
 </html>
