@@ -3,16 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>はよ選果 V1.43</title>
+    <title>はよ選果 V1.44</title>
     <style>
-        body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
+        /* 背景色を明るい薄ピンクに変更、文字色を黒に */
+        body { background-color: #ffe4e1; color: #000; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
         
-        /* アプリ名タイトルのスタイル */
-        #app-title { font-size: 28px; font-weight: bold; color: #ff4757; margin-top: 5px; margin-bottom: 5px; letter-spacing: 2px; }
+        /* タイトルの色を少し濃い赤に調整 */
+        #app-title { font-size: 28px; font-weight: bold; color: #d63031; margin-top: 5px; margin-bottom: 5px; letter-spacing: 2px; }
         
-        #status { color: #888; font-size: 14px; margin-bottom: 5px; }
-        #weight { font-size: 80px; font-weight: bold; color: #00ff00; margin: 5px 0; }
-        #weight span { font-size: 24px; }
+        /* ステータスの色を少し濃く調整 */
+        #status { color: #555; font-size: 14px; margin-bottom: 5px; }
+        
+        /* 重量の数字は緑のまま */
+        #weight { font-size: 80px; font-weight: bold; color: #00b300; margin: 5px 0; }
+        /* 単位（g）の色を黒に */
+        #weight span { font-size: 24px; color: #000; }
+        
         #diff-display { font-size: 30px; color: #ff4757; height: 35px; }
         
         /* ポップアップ（縦向き） */
@@ -140,6 +146,7 @@
                 label = getTamaNumGreen(diff); bgColor = "#008000"; audioKey = label;
                 imgNum = label;
             } else if (diff >= 19.25) { 
+                // 12玉：黄色バック時は文字を黒に
                 label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12"; imgNum = "12";
             } else if (diff >= 15.25) { 
                 if (diff >= 17.8) { label = "2L大"; audioKey = "2LD"; } else { label = "2L小"; audioKey = "2LS"; }
