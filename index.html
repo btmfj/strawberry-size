@@ -3,14 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>はよ選果 V1.38</title>
+    <title>はよ選果 V1.41</title>
     <style>
         body { background-color: #000; color: #fff; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
         #status { color: #888; font-size: 14px; margin-bottom: 5px; }
         #weight { font-size: 80px; font-weight: bold; color: #00ff00; margin: 5px 0; }
         #weight span { font-size: 24px; }
         #diff-display { font-size: 30px; color: #ff4757; height: 35px; }
-        #flash-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: none; align-items: center; justify-content: center; z-index: 100; font-size: 140px; font-weight: bold; }
+        
+        /* ポップアップを縦並び（文字が上、画像が下）に変更 */
+        #flash-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            display: none; flex-direction: column; align-items: center; justify-content: center; 
+            z-index: 100; font-weight: bold; 
+        }
+        #flash-text { font-size: 140px; line-height: 1; margin-bottom: 20px; }
+        #flash-img { max-width: 80%; max-height: 40%; object-fit: contain; display: none; }
+
         .btn-container { position: relative; z-index: 10; }
         .my-button { width: 95%; max-width: 400px; height: 85px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
         #connectBtn { background-color: #28a745; box-shadow: 0 4px #1e7e34; }
@@ -20,7 +29,12 @@
 </head>
 <body>
     <video id="wake-lock-video" playsinline loop muted></video>
-    <div id="flash-overlay"></div>
+    
+    <div id="flash-overlay">
+        <div id="flash-text"></div>
+        <img id="flash-img" src="" alt="size-image">
+    </div>
+
     <div id="status">Bluetooth未接続</div>
     <div id="weight">0.0<span>g</span></div>
     <div id="diff-display">--.- g 減</div>
@@ -65,13 +79,8 @@
             try {
                 sounds["START"].play();
                 requestWakeLock();
-
                 const device = await navigator.bluetooth.requestDevice({
-                    // ここを修正：はよ選果で始まる名前を許可
-                    filters: [
-                        { namePrefix: 'はよ選果' },
-                        { namePrefix: 'ESP32_Strawberry_Scale' }
-                    ],
+                    filters: [{ namePrefix: 'はよ選果' }, { namePrefix: 'ESP32_Strawberry_Scale' }],
                     optionalServices: [SERVICE_UUID]
                 });
                 const server = await device.gatt.connect();
@@ -108,13 +117,16 @@
             if (diff < 5.0) return;
             document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減";
             let label = ""; let bgColor = ""; let textColor = "#fff"; let audioKey = "";
+            let imgNum = ""; // 画像表示用の変数
 
             if (diff >= 25.35) { 
                 label = getTamaNumPink(diff); bgColor = "#ff69b4"; audioKey = label;
+                if (parseInt(label) >= 4) imgNum = label; // 4〜9玉なら画像あり
             } else if (diff >= 20.9) { 
                 label = getTamaNumGreen(diff); bgColor = "#008000"; audioKey = label;
+                imgNum = label; // 10, 11玉なら画像あり
             } else if (diff >= 19.25) { 
-                label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12";
+                label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12"; imgNum = "12";
             } else if (diff >= 15.25) { 
                 if (diff >= 17.8) { label = "2L大"; audioKey = "2LD"; } else { label = "2L小"; audioKey = "2LS"; }
                 bgColor = "#ff0000";
@@ -130,7 +142,7 @@
             }
 
             if (label) {
-                showFlash(label, bgColor, textColor);
+                showFlash(label, bgColor, textColor, imgNum);
                 if(sounds[audioKey]) {
                     sounds[audioKey].currentTime = 0;
                     sounds[audioKey].play();
@@ -148,11 +160,26 @@
             if (d >= 22.9) return "10"; return "11";
         }
 
-        function showFlash(text, color, tColor) {
+        function showFlash(text, color, tColor, imgNum) {
             const overlay = document.getElementById('flash-overlay');
-            overlay.innerText = text; overlay.style.backgroundColor = color;
-            overlay.style.color = tColor; overlay.style.display = 'flex';
-            setTimeout(() => { overlay.style.display = 'none'; }, 1100);
+            const fText = document.getElementById('flash-text');
+            const fImg = document.getElementById('flash-img');
+
+            fText.innerText = text;
+            fText.style.color = tColor;
+            overlay.style.backgroundColor = color;
+            
+            // 画像の判定
+            if (imgNum) {
+                fImg.src = "./" + imgNum + ".png";
+                fImg.style.display = 'block';
+            } else {
+                fImg.style.display = 'none';
+            }
+
+            overlay.style.display = 'flex';
+            // 表示時間を2000ms（2秒）に変更
+            setTimeout(() => { overlay.style.display = 'none'; }, 2000);
         }
 
         document.getElementById('tareBtn').onclick = () => {
