@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.01</title>
+    <title>イチゴ選別システム V1.02</title>
     <style>
         body { background-color: #ffe4e1; color: #000; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
         #app-title { font-size: 28px; font-weight: bold; color: #d63031; margin-top: 5px; margin-bottom: 5px; letter-spacing: 2px; }
@@ -27,10 +27,23 @@
         #flash-text { font-size: 140px; line-height: 1; margin-bottom: 20px; }
         #flash-img { max-width: 80%; max-height: 50%; object-fit: contain; display: none; }
 
-        .btn-container { position: relative; z-index: 10; }
-        .my-button { width: 95%; max-width: 400px; height: 85px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 10px 0; }
+        .btn-container { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; }
+        .my-button { width: 95%; max-width: 400px; height: 80px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 8px 0; cursor: pointer; transition: 0.2s; }
         #connectBtn { background-color: #28a745; box-shadow: 0 4px #1e7e34; }
         #tareBtn { background-color: #ff8c00; box-shadow: 0 4px #d97700; }
+
+        /* モード切替ボタンのスタイル */
+        .mode-container { display: flex; width: 95%; max-width: 400px; gap: 10px; margin-top: 5px; }
+        .mode-btn { flex: 1; height: 60px; font-size: 18px; font-weight: bold; border-radius: 15px; border: 2px solid #d63031; background-color: #fff; color: #d63031; cursor: pointer; transition: all 0.2s; }
+        
+        /* 選択されている（凹んでいる）状態 */
+        .mode-btn.active {
+            background-color: #d63031;
+            color: #fff;
+            box-shadow: inset 4px 4px 8px rgba(0,0,0,0.3);
+            transform: translateY(2px);
+        }
+
         #wake-lock-video { position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
     </style>
 </head>
@@ -46,15 +59,24 @@
     <div id="status">Bluetooth未接続</div>
     <div id="weight">0.0<span>g</span></div>
     <div id="diff-display">--.- g 減</div>
+    
     <div class="btn-container">
         <button id="connectBtn" class="my-button">① 接続・開始</button>
         <button id="tareBtn" class="my-button">② 基準リセット</button>
+        
+        <div class="mode-container">
+            <button id="modePre" class="mode-btn active">事前選果</button>
+            <button id="modeDirect" class="mode-btn">直パック詰め</button>
+        </div>
     </div>
 
     <script>
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
         const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         
+        // モード状態（デフォルト：事前選果）
+        let currentMode = "pre"; 
+
         const sounds = {};
         const audioFiles = {
             "START": "start.mp3", "SD": "sd.mp3", "SS": "ss.mp3", "MD": "md.mp3", "MS": "ms.mp3",
@@ -68,7 +90,6 @@
             sounds[key].load();
         });
 
-        // --- 全画像プリロード機能 ---
         const imageCache = {};
         const imageFiles = ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "sd", "ss", "md", "ms", "ld", "ls", "2ld", "2ls"];
         
@@ -78,7 +99,6 @@
                 img.src = `./${name}.png`;
                 imageCache[name] = img;
             });
-            console.log("All images preloaded.");
         }
 
         let bluetoothChar = null;
@@ -86,6 +106,18 @@
         let stableWeight = 0;
         let weightHistory = [];
         let wakeLock = null;
+
+        // モード切替イベント
+        document.getElementById('modePre').onclick = () => {
+            currentMode = "pre";
+            document.getElementById('modePre').classList.add('active');
+            document.getElementById('modeDirect').classList.remove('active');
+        };
+        document.getElementById('modeDirect').onclick = () => {
+            currentMode = "direct";
+            document.getElementById('modeDirect').classList.add('active');
+            document.getElementById('modePre').classList.remove('active');
+        };
 
         async function requestWakeLock() {
             if ('wakeLock' in navigator) {
@@ -141,43 +173,24 @@
             let label = ""; let bgColor = ""; let textColor = "#fff"; let audioKey = "";
             let imgKey = "";
 
-            // --- サイズ判定ロジック見直し（平均果重の中間を境目に設定） ---
-            if (diff >= 70.0) { // 3玉 (80g〜) 境界は70g
-                label = "3"; bgColor = "#ff69b4"; audioKey = "3"; imgKey = ""; 
-            } else if (diff >= 54.0) { // 4玉 (60g) 境界は54g
-                label = "4"; bgColor = "#ff69b4"; audioKey = "4"; imgKey = "4";
-            } else if (diff >= 44.0) { // 5玉 (48g) 境界は44g
-                label = "5"; bgColor = "#ff69b4"; audioKey = "5"; imgKey = "5";
-            } else if (diff >= 37.1) { // 6玉 (40g) 境界は37.15g
-                label = "6"; bgColor = "#ff69b4"; audioKey = "6"; imgKey = "6";
-            } else if (diff >= 32.1) { // 7玉 (34.3g) 境界は32.15g
-                label = "7"; bgColor = "#ff69b4"; audioKey = "7"; imgKey = "7";
-            } else if (diff >= 28.3) { // 8玉 (30g) 境界は28.35g
-                label = "8"; bgColor = "#ff69b4"; audioKey = "8"; imgKey = "8";
-            } else if (diff >= 25.3) { // 9玉 (26.7g) 境界は25.35g
-                label = "9"; bgColor = "#ff69b4"; audioKey = "9"; imgKey = "9";
-            } else if (diff >= 22.9) { // 10玉 (24g) 境界は22.9g
-                label = "10"; bgColor = "#008000"; audioKey = "10"; imgKey = "10";
-            } else if (diff >= 20.9) { // 11玉 (21.8g) 境界は20.9g
-                label = "11"; bgColor = "#008000"; audioKey = "11"; imgKey = "11";
-            } else if (diff >= 19.2) { // 12玉 (20g) 境界は19.25g
-                label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12"; imgKey = "12";
-            } else if (diff >= 17.8) { // 2L大 (18.5g) 境界は17.8g
-                label = "2L大"; bgColor = "#ff0000"; audioKey = "2LD"; imgKey = "2ld";
-            } else if (diff >= 15.2) { // 2L小 (17.1g, 16.0g) 境界は15.25g
-                label = "2L小"; bgColor = "#ff0000"; audioKey = "2LS"; imgKey = "2ls";
-            } else if (diff >= 13.7) { // L大 (14.1g) 境界は13.7g
-                label = "L大"; bgColor = "#0000ff"; audioKey = "LD"; imgKey = "ld";
-            } else if (diff >= 11.7) { // L小 (13.3g, 12.6g) 境界は11.75g
-                label = "L小"; bgColor = "#0000ff"; audioKey = "LS"; imgKey = "ls";
-            } else if (diff >= 10.6) { // M大 (10.9g) 境界は10.65g
-                label = "M大"; bgColor = "#ff0000"; audioKey = "MD"; imgKey = "md";
-            } else if (diff >= 9.5) { // M小 (10.4g) 境界は9.5g
-                label = "M小"; bgColor = "#ff0000"; audioKey = "MS"; imgKey = "ms";
-            } else if (diff >= 8.1) { // S大 (8.6g, 8.3g) 境界は8.15g
-                label = "S大"; bgColor = "#0000ff"; audioKey = "SD"; imgKey = "sd";
-            } else if (diff >= 7.0) { // S小 (8.0g, 7.7g, 7.5g) 境界は7.0g
-                label = "S小"; bgColor = "#0000ff"; audioKey = "SS"; imgKey = "ss";
+            if (diff >= 70.0) { label = "3"; bgColor = "#ff69b4"; audioKey = "3"; imgKey = ""; 
+            } else if (diff >= 54.0) { label = "4"; bgColor = "#ff69b4"; audioKey = "4"; imgKey = "4";
+            } else if (diff >= 44.0) { label = "5"; bgColor = "#ff69b4"; audioKey = "5"; imgKey = "5";
+            } else if (diff >= 37.1) { label = "6"; bgColor = "#ff69b4"; audioKey = "6"; imgKey = "6";
+            } else if (diff >= 32.1) { label = "7"; bgColor = "#ff69b4"; audioKey = "7"; imgKey = "7";
+            } else if (diff >= 28.3) { label = "8"; bgColor = "#ff69b4"; audioKey = "8"; imgKey = "8";
+            } else if (diff >= 25.3) { label = "9"; bgColor = "#ff69b4"; audioKey = "9"; imgKey = "9";
+            } else if (diff >= 22.9) { label = "10"; bgColor = "#008000"; audioKey = "10"; imgKey = "10";
+            } else if (diff >= 20.9) { label = "11"; bgColor = "#008000"; audioKey = "11"; imgKey = "11";
+            } else if (diff >= 19.2) { label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12"; imgKey = "12";
+            } else if (diff >= 17.8) { label = "2L大"; bgColor = "#ff0000"; audioKey = "2LD"; imgKey = "2ld";
+            } else if (diff >= 15.2) { label = "2L小"; bgColor = "#ff0000"; audioKey = "2LS"; imgKey = "2ls";
+            } else if (diff >= 13.7) { label = "L大"; bgColor = "#0000ff"; audioKey = "LD"; imgKey = "ld";
+            } else if (diff >= 11.7) { label = "L小"; bgColor = "#0000ff"; audioKey = "LS"; imgKey = "ls";
+            } else if (diff >= 10.6) { label = "M大"; bgColor = "#ff0000"; audioKey = "MD"; imgKey = "md";
+            } else if (diff >= 9.5) { label = "M小"; bgColor = "#ff0000"; audioKey = "MS"; imgKey = "ms";
+            } else if (diff >= 8.1) { label = "S大"; bgColor = "#0000ff"; audioKey = "SD"; imgKey = "sd";
+            } else if (diff >= 7.0) { label = "S小"; bgColor = "#0000ff"; audioKey = "SS"; imgKey = "ss";
             }
 
             if (label) {
@@ -198,16 +211,29 @@
             fText.style.color = tColor;
             overlay.style.backgroundColor = color;
             
-            if (imgKey && imageCache[imgKey]) {
-                fImg.src = imageCache[imgKey].src;
-                fImg.style.display = 'block';
-            } else {
+            // モードによる出し分け
+            let displayTime = 3900; // デフォルト（直パック）
+
+            if (currentMode === "pre") {
+                // 事前選果モード：画像なし、時間は2秒
                 fImg.style.display = 'none';
+                displayTime = 2000;
+            } else {
+                // 直パック詰めモード：画像あり、時間は今まで通り（3.9秒）
+                if (imgKey && imageCache[imgKey]) {
+                    fImg.src = imageCache[imgKey].src;
+                    fImg.style.display = 'block';
+                } else {
+                    fImg.style.display = 'none';
+                }
+                displayTime = 3900;
             }
 
             overlay.style.display = 'flex';
-            // 表示時間を3900ms（3.9秒）に変更
-            setTimeout(() => { overlay.style.display = 'none'; }, 3000);
+            
+            // 既存のタイマーがあればクリアして上書き（連打対策）
+            if (window.flashTimer) clearTimeout(window.flashTimer);
+            window.flashTimer = setTimeout(() => { overlay.style.display = 'none'; }, displayTime);
         }
 
         document.getElementById('tareBtn').onclick = () => {
