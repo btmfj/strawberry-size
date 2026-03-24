@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>イチゴ選別システム V2.01</title>
+    <title>はよ選果 V2.00</title>
     <style>
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #ffe4e1; font-family: sans-serif; position: fixed; width: 100%; }
         #app-container { height: 100%; display: flex; flex-direction: column; align-items: center; padding: 10px; box-sizing: border-box; width: 100%; }
@@ -75,7 +75,7 @@
     <div id="keep-alive-pixel"></div>
     <div id="app-container">
         <div id="weight-section">
-            <div id="app-title">はよ選果 V2.01</div>
+            <div id="app-title">はよ選果 V2.00</div>
             <div id="status">Bluetooth未接続</div>
             <div id="weight">0.0<span>g</span></div>
             <div id="diff-display">--.- g 減</div>
@@ -97,7 +97,7 @@
     
     <div id="settings-modal" class="modal">
         <div class="modal-header">
-            <div class="modal-title">設定 (V2.01)</div>
+            <div class="modal-title">設定 (V2.00)</div>
             <div class="header-btn-group">
                 <button class="header-btn save-btn" onclick="saveConfig()">保存</button>
                 <button class="header-btn back-btn" onclick="document.getElementById('settings-modal').style.display='none'">戻る</button>
@@ -130,37 +130,32 @@
     <script>
         const STORAGE_KEY = 'strawberry_config_v200'; 
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-        const CHARACTERISTIC_UUID = "beb5483e-36e1-4588-b7f5-ea07361b26a8";
+        const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzoXz3vQvQOg6TIR0cshy5N6ysqWC-AODRzlCmN2Cr-WPK3hgOr3zCVPZ_kMgNqYu_U/exec";
-        
         let currentRanges = [], sounds = {}, currentMode = "pre";
         const availableAudios = ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "2L", "2L大", "2L小", "3L", "L", "L大", "L小", "M", "M大", "M小", "S", "S大", "S小", "a", "aa", "b", "dx", "ex", "g"];
         const colorPalette = { "赤": "#d63031", "紫": "#6c5ce7", "青": "#0984e3", "緑": "#00b894", "オレンジ": "#e67e22", "黒": "#000000" };
-        
         function toHalfWidth(str) { return str ? str.replace(/[！-～]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)) : str; }
         function getFileName(audioName) { return audioName ? encodeURIComponent(toHalfWidth(audioName).toLowerCase()) + ".mp3" : ""; }
         
-        // NoSleep系
         let wakeLock = null, pixelTimer = null, audioTimer = null, locTimer = null;
         const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
         async function activateNoSleep() {
             if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
             function animatePixel() { document.getElementById('keep-alive-pixel').style.top = (Math.random() * 2) + "px"; pixelTimer = requestAnimationFrame(animatePixel); }
             animatePixel();
-            if(!audioTimer) audioTimer = setInterval(() => { silentAudio.play().catch(e => {}); }, 15000);
-            if(!locTimer) locTimer = setInterval(() => { navigator.geolocation.getCurrentPosition(()=>{},()=>{},{enableHighAccuracy:false}); }, 45000);
+            audioTimer = setInterval(() => { silentAudio.play().catch(e => {}); }, 15000);
+            locTimer = setInterval(() => { navigator.geolocation.getCurrentPosition(()=>{},()=>{},{enableHighAccuracy:false}); }, 45000);
             const video = document.getElementById('no-sleep-video');
             video.src = "data:video/mp4;base64,AAAAHGZ0eXBpc29tAAACAGlzb21hdmMxbXA0MgAAAAhmcmVlAAAAG21kYXTeBAAAbGliYXZjb3JlIDU4LjkxLjEwMAD//wAAABxtb292AAAAbG12aGQAAAAA3nN/X95zf18AAAPoAAAAKAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACNXRyYWsAAABcdGtoZAAAAAnec39f3nN/XwAAAAEAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAfQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAW1kaWEAAAAgbWRoZAAAAADec39f3nN/XwAAV+AAAAL0AVhMdW5nAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABOG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAQptZGlhAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABOG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAXJzdGJsAAAAtXN0c2QAAAAAAAAAAQAAAKZhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAgACABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAALWF2Y0MBQsAr/+EAFWfEAn76f/p9An4AABAAAAMAQAAH0AABQAABGRmS9IAAAAtzdHRzAAAAAAAAAAEAAAABAAAV+AAAAClzdHNjAAAAAAAAAAEAAAABAAAAAQAAAAEAAAAUc3RzegAAAAAAAAAAAAAAAgAAABRzdGNvAAAAAAAAAAEAAAA4AAAAYnVkdGEAAABabWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcgAAAAAAAAAAAAAAAAAAAAAAYXBwbAAAAClpbHN0AAAAIal0b28AAAAbZGF0YQAAAAEAAAAATGF2ZiA1OC43Ni4xMDA=";
             video.play().catch(e => {});
         }
 
-        // TTS準備
         let voices = [];
         function loadVoices() { voices = window.speechSynthesis.getVoices().filter(v => v.lang.includes('ja')); }
         window.speechSynthesis.onvoiceschanged = loadVoices;
         loadVoices();
 
-        // 設定読み込み
         function loadSettings() {
             const saved = localStorage.getItem(STORAGE_KEY);
             currentRanges = saved ? JSON.parse(saved) : [{ min: 17.8, label: "2L", audio: "2L", audioMode: "mp3", ttsText: "ニエル", ttsVoice: "female", ttsRate: 1.0, ttsPitch: 1.0, colorName: "青", images: [null, null, null, null] }];
@@ -188,7 +183,6 @@
         function saveConfig() { localStorage.setItem(STORAGE_KEY, JSON.stringify(currentRanges)); refreshSounds(); alert('設定を保存しました'); }
         function addRangeRow() { currentRanges.push({min:0,label:'新規格',audio:'3',audioMode:'mp3',ttsText:'',ttsVoice:'female',ttsRate:1.0,ttsPitch:1.0,colorName:'黒',images:[null,null,null,null]}); renderConfigList(); }
 
-        // GAS 同期
         async function syncToGas() {
             const loader = document.getElementById('loader'), msg = document.getElementById('sync-msg'), qrDiv = document.getElementById('qrcode');
             loader.style.display = 'block'; msg.innerText = "データ送信中..."; qrDiv.innerHTML = '';
@@ -294,85 +288,27 @@
             window.flashTimer = setTimeout(() => { overlay.style.display = 'none'; }, currentMode === "pre" ? 1200 : 3500);
         }
 
-        // Bluetooth 接続・処理
-        let bluetoothChar = null, bluetoothDevice = null, stableWeight = 0, weightHistory = [];
-
-        async function connectBLE() {
-            try {
-                bluetoothDevice = await navigator.bluetooth.requestDevice({ 
-                    filters: [{ namePrefix: 'はよ選果' }], 
-                    optionalServices: [SERVICE_UUID] 
-                });
-
-                // 切断イベントのリスナー登録
-                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
-
-                const server = await bluetoothDevice.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
-                
-                await bluetoothChar.startNotifications();
-                bluetoothChar.addEventListener('characteristicvaluechanged', handleWeightChange);
-
-                document.getElementById('status').innerText = "✅ 稼働中";
-                if(sounds["start"]) sounds["start"].play();
-                
-            } catch (err) {
-                console.error(err);
-                alert("秤との接続に失敗しました。Bluetooth設定を確認してください。");
-            }
-        }
-
-        function onDisconnected(event) {
-            document.getElementById('status').innerText = "❌ 切断：再試行中...";
-            // 自動再接続のロジック
-            setTimeout(() => {
-                if (bluetoothDevice) {
-                    bluetoothDevice.gatt.connect()
-                        .then(server => server.getPrimaryService(SERVICE_UUID))
-                        .then(service => service.getCharacteristic(CHARACTERISTIC_UUID))
-                        .then(char => {
-                            bluetoothChar = char;
-                            return bluetoothChar.startNotifications();
-                        })
-                        .then(() => {
-                            bluetoothChar.addEventListener('characteristicvaluechanged', handleWeightChange);
-                            document.getElementById('status').innerText = "✅ 復帰完了";
-                        })
-                        .catch(e => {
-                            document.getElementById('status').innerText = "Bluetooth未接続";
-                        });
-                }
-            }, 2000);
-        }
-
-        function handleWeightChange(e) {
-            const w = parseFloat(new TextDecoder().decode(e.target.value));
-            document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
-            
-            weightHistory.push(w); 
-            if (weightHistory.length > 3) weightHistory.shift();
-            
-            if (weightHistory.length === 3 && Math.max(...weightHistory) - Math.min(...weightHistory) < 0.2) {
-                if (Math.abs(stableWeight - w) > 0.5) { 
-                    if (stableWeight > w) { 
-                        const diff = stableWeight - w; 
-                        if(diff >= 5.0){ 
-                            document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減"; 
-                            const match = currentRanges.find(r => diff >= r.min); 
-                            if (match) triggerEffect(match); 
-                        } 
-                    } 
-                    stableWeight = w; 
-                }
-            }
-        }
-
+        let bluetoothChar = null, stableWeight = 0, weightHistory = [];
         document.getElementById('connectBtn').onclick = async () => {
             await activateNoSleep();
-            await connectBLE();
+            try {
+                const device = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: 'はよ選果' }], optionalServices: [SERVICE_UUID] });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
+                await bluetoothChar.startNotifications();
+                document.getElementById('status').innerText = "✅ 稼働中";
+                if(sounds["start"]) sounds["start"].play();
+                bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
+                    const w = parseFloat(new TextDecoder().decode(e.target.value));
+                    document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
+                    weightHistory.push(w); if (weightHistory.length > 3) weightHistory.shift();
+                    if (weightHistory.length === 3 && Math.max(...weightHistory) - Math.min(...weightHistory) < 0.2) {
+                        if (Math.abs(stableWeight - w) > 0.5) { if (stableWeight > w) { const diff = stableWeight - w; if(diff>=5.0){ document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減"; const match = currentRanges.find(r => diff >= r.min); if (match) triggerEffect(match); } } stableWeight = w; }
+                    }
+                });
+            } catch (err) { alert("秤が見つかりません"); }
         };
-
         document.getElementById('settingsBtn').onclick = () => { renderConfigList(); document.getElementById('settings-modal').style.display = 'block'; window.scrollTo(0, 0); };
         document.getElementById('tareBtn').onclick = () => { if(bluetoothChar) bluetoothChar.writeValue(new TextEncoder().encode('1')); };
         document.getElementById('modePre').onclick = () => { currentMode="pre"; document.getElementById('modePre').classList.add('active'); document.getElementById('modeDirect').classList.remove('active'); };
@@ -415,9 +351,12 @@
                 img.onload = () => {
                     const cvs = document.createElement('canvas'), maxSide = 600;
                     const sc = Math.min(maxSide/img.width, maxSide/img.height, 1.0);
-                    cvs.width = img.width*sc; cvs.height = img.height*sc;
-                    const ctx2 = cvs.getContext('2d'); ctx2.drawImage(img, 0, 0, cvs.width, cvs.height);
-                    currentRanges[i].images[sIdx] = cvs.toDataURL('image/jpeg', 0.85); renderConfigList();
+                    cvs.width = img.width * sc;
+                    cvs.height = img.height * sc;
+                    const ctx = cvs.getContext('2d'); 
+                    ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
+                    currentRanges[i].images[sIdx] = cvs.toDataURL('image/jpeg', 0.85); 
+                    renderConfigList();
                 };
             }; reader.readAsDataURL(file);
         }
