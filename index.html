@@ -2,250 +2,404 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>イチゴ選別システム V1.02</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>イチゴ選別システム V2.00</title>
     <style>
-        body { background-color: #ffe4e1; color: #000; text-align: center; font-family: sans-serif; padding: 10px; overflow: hidden; }
-        #app-title { font-size: 28px; font-weight: bold; color: #d63031; margin-top: 5px; margin-bottom: 5px; letter-spacing: 2px; }
-        #status { color: #555; font-size: 14px; margin-bottom: 5px; }
-        #weight { font-size: 80px; font-weight: bold; color: #00b300; margin: 5px 0; }
-        #weight span { font-size: 24px; color: #000; }
-        #diff-display { font-size: 30px; color: #ff4757; height: 35px; }
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #ffe4e1; font-family: sans-serif; position: fixed; width: 100%; }
+        #app-container { height: 100%; display: flex; flex-direction: column; align-items: center; padding: 10px; box-sizing: border-box; width: 100%; }
+        #weight-section { text-align: center; margin: 0; flex-shrink: 0; width: 100%; }
+        #app-title { font-size: 28px; font-weight: bold; color: #d63031; margin-bottom: 5px; }
+        #status { color: #d63031; font-size: 16px; font-weight: bold; margin-bottom: 5px; min-height: 1.2em; }
+        #weight { font-size: 12vh; font-weight: bold; color: #00b300; line-height: 1; margin: 5px 0; letter-spacing: -2px; }
+        #weight span { font-size: 4vh; color: #000; margin-left: 5px; }
+        #diff-display { font-size: 4.5vh; color: #ff4757; height: 5vh; font-weight: bold; margin-bottom: 10px; }
         
-        #flash-overlay { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            display: none; flex-direction: column; align-items: center; justify-content: center; 
-            z-index: 100; font-weight: bold; padding: 20px; box-sizing: border-box;
-        }
-
-        @media screen and (orientation: landscape) {
-            #flash-overlay { flex-direction: row; justify-content: space-around; }
-            #flash-text { margin-bottom: 0 !important; margin-right: 20px; }
-            #flash-img { max-width: 45% !important; max-height: 80% !important; }
-        }
-
-        #flash-text { font-size: 140px; line-height: 1; margin-bottom: 20px; }
-        #flash-img { max-width: 80%; max-height: 50%; object-fit: contain; display: none; }
-
-        .btn-container { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; }
-        .my-button { width: 95%; max-width: 400px; height: 80px; font-size: 24px; font-weight: bold; border-radius: 20px; border: none; color: white; margin: 8px 0; cursor: pointer; transition: 0.2s; }
-        #connectBtn { background-color: #28a745; box-shadow: 0 4px #1e7e34; }
-        #tareBtn { background-color: #ff8c00; box-shadow: 0 4px #d97700; }
-
-        /* モード切替ボタンのスタイル */
-        .mode-container { display: flex; width: 95%; max-width: 400px; gap: 10px; margin-top: 5px; }
-        .mode-btn { flex: 1; height: 60px; font-size: 18px; font-weight: bold; border-radius: 15px; border: 2px solid #d63031; background-color: #fff; color: #d63031; cursor: pointer; transition: all 0.2s; }
+        #flash-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 500; display: none; box-sizing: border-box; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; }
+        #flash-text-cell { display: flex; justify-content: center; align-items: center; width: 100%; flex-shrink: 0; overflow: hidden; }
+        #flash-text { font-size: 14vh; font-weight: bold; color: #fff; margin: 0; text-align: center; width: 100%; white-space: nowrap; }
+        #flash-img-cell { width: 100%; display: flex; justify-content: center; align-items: center; overflow: hidden; flex-grow: 1; height: 0; }
+        #flash-img-container { width: 100%; height: 100%; max-width: 80vh; margin: 0 auto; position: relative; display: flex; justify-content: center; align-items: center; gap: 4px; overflow: hidden; }
+        #flash-img-container.grid-layout { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 15px; padding: 10px; box-sizing: border-box; aspect-ratio: 1 / 1; width: auto; height: 100%; }
+        #flash-img-container.grid-layout div { position: relative; display: flex; width: 100%; height: 100%; overflow: hidden; background: transparent; border-radius: 0px; }
+        .flash-img-item { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 0px; }
         
-        /* 選択されている（凹んでいる）状態 */
-        .mode-btn.active {
-            background-color: #d63031;
-            color: #fff;
-            box-shadow: inset 4px 4px 8px rgba(0,0,0,0.3);
-            transform: translateY(2px);
-        }
+        .btn-container { width: 100%; max-width: 500px; margin-top: auto; padding-bottom: 15px; flex-shrink: 0; }
+        .my-button { width: 100%; height: 65px; font-size: 22px; font-weight: bold; border-radius: 15px; border: none; color: white; margin: 6px 0; cursor: pointer; transition: 0.1s; }
+        #connectBtn { background-color: #28a745; box-shadow: 0 5px #1e7e34; }
+        #tareBtn { background-color: #ff8c00; box-shadow: 0 5px #d97700; }
+        .mode-row { display: flex; gap: 10px; margin: 6px 0; }
+        .mode-btn { flex: 1; height: 55px; border-radius: 12px; border: 3px solid #d63031; background: #fff; color: #d63031; font-weight: bold; font-size: 18px; }
+        .mode-btn.active { background: #d63031; color: #fff; }
+        #settingsBtn { background: #6c757d; height: 50px; font-size: 16px; margin-top: 5px; }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 600; box-sizing: border-box; overflow-y: auto; padding-top: 70px; }
+        .modal-header { position: fixed; top: 0; left: 0; width: 100%; height: 70px; background: white; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding: 0 15px; box-sizing: border-box; z-index: 700; }
+        .modal-title { font-size: 22px; font-weight: bold; }
+        .header-btn-group { display: flex; gap: 10px; }
+        .header-btn { height: 45px; padding: 0 15px; border-radius: 10px; border: none; color: white; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .save-btn { background-color: #28a745; }
+        .back-btn { background-color: #ff4757; }
+        
+        .modal-content { padding: 15px; }
+        .config-row { border: 2px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 12px; background: #fafafa; }
+        .input-group { display: flex; align-items: center; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+        .guide-label { font-size: 15px; font-weight: bold; color: #333; background: #eee; padding: 2px 6px; border-radius: 4px; }
+        .config-inputs input, .config-inputs select { height: 45px; font-size: 18px; font-weight: bold; border: 1px solid #999; border-radius: 8px; padding: 0 5px; }
+        
+        .tts-control-box { background: #eef2ff; padding: 10px; border-radius: 10px; margin-top: 5px; width: 100%; box-sizing: border-box; border: 1px solid #c7d2fe; }
+        .tts-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; width: 100%; }
+        .tts-row label { font-size: 13px; font-weight: bold; min-width: 50px; }
+        .tts-slider { flex-grow: 1; height: 30px; cursor: pointer; }
+        .step-btn { width: 36px; height: 36px; border-radius: 8px; border: 1px solid #999; background: #fff; font-size: 20px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px #ccc; }
+        .step-btn:active { transform: translateY(2px); box-shadow: none; }
+        .val-disp { font-size: 14px; font-weight: bold; min-width: 35px; text-align: center; color: #4338ca; }
 
-        #wake-lock-video { position: absolute; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; }
+        .image-slots { display: flex; gap: 12px; justify-content: flex-start; margin-top: 5px; }
+        .slot { position: relative; width: 65px; height: 65px; border: 2px dashed #bbb; background: #eee; border-radius: 8px; }
+        .slot img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; }
+        .slot label { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 24px; color: #007bff; cursor: pointer; }
+        .slot-del { position: absolute; top: -8px; right: -8px; background: #ff4757; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; font-weight: bold; }
+        .action-row { display: flex; gap: 10px; margin-top: 10px; }
+        .del-row-btn { flex: 1; background: #ff4757; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .preview-row-btn { flex: 1; background: #28a745; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
+        .share-card { background: #f0fdf4; border: 3px solid #10b981; border-radius: 20px; padding: 20px; margin-top: 30px; text-align: center; }
+        .sync-button { height: 55px; font-size: 18px; margin: 8px 0; }
+        #qrcode { margin: 15px auto; display: flex; justify-content: center; background: white; padding: 10px; min-height: 160px; border: 1px solid #ddd; }
+        #v-canvas { width: 100%; max-width: 320px; display: none; margin: 15px auto; border: 4px solid #10b981; border-radius: 12px; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid #10b981; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; display: none; margin: 15px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <video id="wake-lock-video" playsinline loop muted></video>
-    <div id="app-title">はよ選果</div>
-
-    <div id="flash-overlay">
-        <div id="flash-text"></div>
-        <img id="flash-img" src="" alt="size-image">
+    <video id="no-sleep-video" playsinline muted loop style="display:none;"></video>
+    <div id="keep-alive-pixel"></div>
+    <div id="app-container">
+        <div id="weight-section">
+            <div id="app-title">はよ選果 V2.00</div>
+            <div id="status">Bluetooth未接続</div>
+            <div id="weight">0.0<span>g</span></div>
+            <div id="diff-display">--.- g 減</div>
+        </div>
+        <div id="flash-overlay">
+            <div id="flash-text-cell"><div id="flash-text"></div></div>
+            <div id="flash-img-cell"><div id="flash-img-container"></div></div>
+        </div>
+        <div class="btn-container">
+            <button id="connectBtn" class="my-button">① 接続・開始</button>
+            <button id="tareBtn" class="my-button">② 基準リセット</button>
+            <div class="mode-row">
+                <button id="modePre" class="mode-btn active">事前選果</button>
+                <button id="modeDirect" class="mode-btn">直パック詰め</button>
+            </div>
+            <button id="settingsBtn" class="my-button">🛠 設定</button>
+        </div>
     </div>
-
-    <div id="status">Bluetooth未接続</div>
-    <div id="weight">0.0<span>g</span></div>
-    <div id="diff-display">--.- g 減</div>
     
-    <div class="btn-container">
-        <button id="connectBtn" class="my-button">① 接続・開始</button>
-        <button id="tareBtn" class="my-button">② 基準リセット</button>
-        
-        <div class="mode-container">
-            <button id="modePre" class="mode-btn active">事前選果</button>
-            <button id="modeDirect" class="mode-btn">直パック詰め</button>
+    <div id="settings-modal" class="modal">
+        <div class="modal-header">
+            <div class="modal-title">設定 (V2.00)</div>
+            <div class="header-btn-group">
+                <button class="header-btn save-btn" onclick="saveConfig()">保存</button>
+                <button class="header-btn back-btn" onclick="document.getElementById('settings-modal').style.display='none'">戻る</button>
+            </div>
+        </div>
+        <div class="modal-content">
+            <div id="config-list"></div>
+            <button onclick="addRangeRow()" style="width:100%; padding:15px; margin-top:10px; border-radius:12px; font-size:20px; font-weight:bold; background:#e0e0e0; border:none; cursor:pointer;">＋ 判定範囲を追加</button>
+            
+            <div class="share-card">
+                <h3>設定の同期</h3>
+                <button class="my-button sync-button" style="background:#10b981;" onclick="syncToGas()">QRコードの作成</button>
+                <div id="loader" class="loader"></div>
+                <div id="qrcode"></div>
+                <p id="sync-msg" style="font-size:14px; font-weight:bold;"></p>
+                <hr style="margin:20px 0; border:0; border-top:2px dashed #10b981; opacity:0.3;">
+                <button class="my-button sync-button" style="background:#3b82f6;" onclick="scanGasQR()">カメラでQR読込</button>
+                <button class="my-button sync-button" style="background:#6366f1;" onclick="document.getElementById('qr-file-input').click()">写真からQR読込</button>
+                <input type="file" id="qr-file-input" accept="image/*" onchange="readQrFromFile(event)" style="display:none">
+                <div id="qr-camera-area">
+                    <canvas id="v-canvas"></canvas>
+                </div>
+            </div>
+            <div style="height:60px;"></div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script>
+        const STORAGE_KEY = 'strawberry_config_v200'; 
         const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-        const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+        const CHARACTERISTIC_UUID = "beb5483e-36e1-4588-b7f5-ea07361b26a8";
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbzoXz3vQvQOg6TIR0cshy5N6ysqWC-AODRzlCmN2Cr-WPK3hgOr3zCVPZ_kMgNqYu_U/exec";
+        let currentRanges = [], sounds = {}, currentMode = "pre";
+        const availableAudios = ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "2L", "2L大", "2L小", "3L", "L", "L大", "L小", "M", "M大", "M小", "S", "S大", "S小", "a", "aa", "b", "dx", "ex", "g"];
+        const colorPalette = { "赤": "#d63031", "紫": "#6c5ce7", "青": "#0984e3", "緑": "#00b894", "オレンジ": "#e67e22", "黒": "#000000" };
+        function toHalfWidth(str) { return str ? str.replace(/[！-～]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)) : str; }
+        function getFileName(audioName) { return audioName ? encodeURIComponent(toHalfWidth(audioName).toLowerCase()) + ".mp3" : ""; }
         
-        // モード状態（デフォルト：事前選果）
-        let currentMode = "pre"; 
+        let wakeLock = null, pixelTimer = null, audioTimer = null, locTimer = null;
+        const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=");
+        async function activateNoSleep() {
+            if ('wakeLock' in navigator) { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+            function animatePixel() { document.getElementById('keep-alive-pixel').style.top = (Math.random() * 2) + "px"; pixelTimer = requestAnimationFrame(animatePixel); }
+            animatePixel();
+            audioTimer = setInterval(() => { silentAudio.play().catch(e => {}); }, 15000);
+            locTimer = setInterval(() => { navigator.geolocation.getCurrentPosition(()=>{},()=>{},{enableHighAccuracy:false}); }, 45000);
+            const video = document.getElementById('no-sleep-video');
+            video.src = "data:video/mp4;base64,AAAAHGZ0eXBpc29tAAACAGlzb21hdmMxbXA0MgAAAAhmcmVlAAAAG21kYXTeBAAAbGliYXZjb3JlIDU4LjkxLjEwMAD//wAAABxtb292AAAAbG12aGQAAAAA3nN/X95zf18AAAPoAAAAKAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACNXRyYWsAAABcdGtoZAAAAAnec39f3nN/XwAAAAEAAAAAAAAAKAAAAAAAAAAAAAAAAAAAAAAAfQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAW1kaWEAAAAgbWRoZAAAAADec39f3nN/XwAAV+AAAAL0AVhMdW5nAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABOG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAQptZGlhAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABOG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAXJzdGJsAAAAtXN0c2QAAAAAAAAAAQAAAKZhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAgACABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAALWF2Y0MBQsAr/+EAFWfEAn76f/p9An4AABAAAAMAQAAH0AABQAABGRmS9IAAAAtzdHRzAAAAAAAAAAEAAAABAAAV+AAAAClzdHNjAAAAAAAAAAEAAAABAAAAAQAAAAEAAAAUc3RzegAAAAAAAAAAAAAAAgAAABRzdGNvAAAAAAAAAAEAAAA4AAAAYnVkdGEAAABabWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcgAAAAAAAAAAAAAAAAAAAAAAYXBwbAAAAClpbHN0AAAAIal0b28AAAAbZGF0YQAAAAEAAAAATGF2ZiA1OC43Ni4xMDA=";
+            video.play().catch(e => {});
+        }
 
-        const sounds = {};
-        const audioFiles = {
-            "START": "start.mp3", "SD": "sd.mp3", "SS": "ss.mp3", "MD": "md.mp3", "MS": "ms.mp3",
-            "LD": "ld.mp3", "LS": "ls.mp3", "2LD": "2ld.mp3", "2LS": "2ls.mp3",
-            "12": "12.mp3", "11": "11.mp3", "10": "10.mp3", "9": "9.mp3",
-            "8": "8.mp3", "7": "7.mp3", "6": "6.mp3", "5": "5.mp3", "4": "4.mp3", "3": "3.mp3"
-        };
-        
-        Object.keys(audioFiles).forEach(key => {
-            sounds[key] = new Audio("./" + audioFiles[key]);
-            sounds[key].load();
-        });
+        let voices = [];
+        function loadVoices() { voices = window.speechSynthesis.getVoices().filter(v => v.lang.includes('ja')); }
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices();
 
-        const imageCache = {};
-        const imageFiles = ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "sd", "ss", "md", "ms", "ld", "ls", "2ld", "2ls"];
-        
-        function preloadImages() {
-            imageFiles.forEach(name => {
+        function loadSettings() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            currentRanges = saved ? JSON.parse(saved) : [{ min: 17.8, label: "2L", audio: "2L", audioMode: "mp3", ttsText: "ニエル", ttsVoice: "female", ttsRate: 1.0, ttsPitch: 1.0, colorName: "青", images: [null, null, null, null] }];
+            currentRanges = currentRanges.map(r => { if(r.audio) r.audio = toHalfWidth(r.audio); if(r.ttsRate === undefined) r.ttsRate = 1.0; if(r.ttsPitch === undefined) r.ttsPitch = 1.0; return r; });
+            currentRanges.sort((a, b) => b.min - a.min);
+            refreshSounds();
+        }
+        window.onload = loadSettings;
+
+        function refreshSounds() {
+            sounds = {};
+            currentRanges.forEach(r => { if ((!r.audioMode || r.audioMode === "mp3") && r.audio) { const ck = toHalfWidth(r.audio); if(!sounds[ck]) sounds[ck] = new Audio("./" + getFileName(ck)); } });
+            sounds["start"] = new Audio("./start.mp3");
+        }
+
+        function speak(text, gender, rate = 1.0, pitch = 1.0) {
+            if (!text) return;
+            window.speechSynthesis.cancel();
+            const uttr = new SpeechSynthesisUtterance(text);
+            uttr.rate = rate; uttr.pitch = pitch;
+            if (voices.length > 0) { const target = gender === "male" ? ["Male", "Otoya", "Ichiro"] : ["Female", "Kyoko", "Hanako"]; uttr.voice = voices.find(v => target.some(n => v.name.includes(n))) || voices[0]; }
+            window.speechSynthesis.speak(uttr);
+        }
+
+        function saveConfig() { localStorage.setItem(STORAGE_KEY, JSON.stringify(currentRanges)); refreshSounds(); alert('設定を保存しました'); }
+        function addRangeRow() { currentRanges.push({min:0,label:'新規格',audio:'3',audioMode:'mp3',ttsText:'',ttsVoice:'female',ttsRate:1.0,ttsPitch:1.0,colorName:'黒',images:[null,null,null,null]}); renderConfigList(); }
+
+        async function syncToGas() {
+            const loader = document.getElementById('loader'), msg = document.getElementById('sync-msg'), qrDiv = document.getElementById('qrcode');
+            loader.style.display = 'block'; msg.innerText = "データ送信中..."; qrDiv.innerHTML = '';
+            const syncId = 'STRW-' + Math.random().toString(36).substring(2, 10);
+            try { await fetch(`${GAS_URL}?id=${syncId}`, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(currentRanges) }); loader.style.display = 'none'; new QRCode(qrDiv, { text: syncId, width: 160, height: 160 }); msg.style.color = "#22c55e"; msg.innerText = "✅ 作成完了 ID: " + syncId; } catch (err) { loader.style.display = 'none'; msg.innerText = "❌ 送信エラー"; }
+        }
+
+        async function processSync(syncId) {
+            const msg = document.getElementById('sync-msg'); msg.style.color = "#000"; msg.innerText = "同期開始...";
+            try {
+                const countRes = await fetch(`${GAS_URL}?id=${syncId}&mode=count`, { mode: "cors", cache: "no-store" });
+                const count = parseInt(await countRes.text());
+                if (isNaN(count) || count === 0) { alert("データが見つかりません。"); return; }
+                let workData = [];
+                for (let i = 0; i < count; i++) {
+                    msg.innerText = `データ読込・保存中 (${i+1}/${count})...`;
+                    const res = await fetch(`${GAS_URL}?id=${syncId}&mode=get&index=${i}`, { mode: "cors", cache: "no-store" });
+                    const part = await res.json();
+                    if (part) { workData.push(part); localStorage.setItem(STORAGE_KEY, JSON.stringify(workData)); }
+                    await new Promise(r => setTimeout(r, 150));
+                }
+                msg.style.color = "#22c55e"; msg.innerText = "✅ 同期完了！";
+                setTimeout(() => { location.reload(); }, 1000);
+            } catch (err) { alert("【同期エラー】\n" + err.message); }
+        }
+
+        async function scanGasQR() {
+            try {
+                const video = document.createElement("video"), canvas = document.getElementById("v-canvas"), ctx = canvas.getContext("2d");
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream; video.setAttribute("playsinline", true); video.play();
+                canvas.style.display = "block";
+                document.getElementById('qr-camera-area').scrollIntoView({ behavior: 'smooth' });
+                const tick = () => {
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        canvas.height = video.videoHeight; canvas.width = video.videoWidth;
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+                        if (code && code.data.startsWith("STRW-")) { stream.getTracks().forEach(t => t.stop()); canvas.style.display = "none"; processSync(code.data); return; }
+                    }
+                    requestAnimationFrame(tick);
+                };
+                requestAnimationFrame(tick);
+            } catch (err) { alert("カメラ起動失敗"); }
+        }
+
+        function readQrFromFile(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (f) => {
                 const img = new Image();
-                img.src = `./${name}.png`;
-                imageCache[name] = img;
+                img.onload = () => {
+                    const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
+                    canvas.width = img.width; canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code && code.data.startsWith("STRW-")) { processSync(code.data); }
+                    else { alert("画像からQRコードを読み取れませんでした。"); }
+                };
+                img.src = f.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function triggerEffect(match, isPreview = false) {
+            const overlay = document.getElementById('flash-overlay');
+            overlay.style.zIndex = isPreview ? "800" : "500";
+            showFlash(match.label, match.colorName || "黒", match.images || []); 
+            if (match.audioMode === "tts") speak(match.ttsText || match.label, match.ttsVoice, match.ttsRate || 1.0, match.ttsPitch || 1.0);
+            else { const ck = toHalfWidth(match.audio); if (sounds[ck]) { sounds[ck].currentTime = 0; sounds[ck].play(); } }
+        }
+
+        function showFlash(text, colorName, imgArray) {
+            const overlay = document.getElementById('flash-overlay');
+            const fTextCell = document.getElementById('flash-text-cell'), fText = document.getElementById('flash-text');
+            const imgCell = document.getElementById('flash-img-cell'), imgContainer = document.getElementById('flash-img-container');
+            const bgColor = colorPalette[colorName] || "#000000";
+            const activeImages = imgArray.filter(src => src !== null);
+            overlay.style.backgroundColor = bgColor; fText.innerText = text;
+            imgContainer.innerHTML = ''; imgContainer.className = '';
+            if (currentMode === "pre" || activeImages.length === 0) {
+                fTextCell.style.height = "100%"; fTextCell.style.display = "flex"; imgCell.style.display = "none"; fText.style.fontSize = "25vh"; 
+            } else {
+                fTextCell.style.height = "20%"; fTextCell.style.display = "flex"; imgCell.style.display = "flex"; fText.style.fontSize = "14vh";
+                if (imgArray.length >= 3 && activeImages.length >= 3) {
+                    imgContainer.classList.add('grid-layout');
+                    ['tl', 'tr', 'bl', 'br'].forEach((pos, i) => {
+                        const gridItem = document.createElement('div');
+                        if (pos === 'tl') { gridItem.style.justifyContent = "flex-end"; gridItem.style.alignItems = "flex-end"; }
+                        if (pos === 'tr') { gridItem.style.justifyContent = "flex-start"; gridItem.style.alignItems = "flex-end"; }
+                        if (pos === 'bl') { gridItem.style.justifyContent = "flex-end"; gridItem.style.alignItems = "flex-start"; }
+                        if (pos === 'br') { gridItem.style.justifyContent = "flex-start"; gridItem.style.alignItems = "flex-start"; }
+                        if (imgArray[i]) { const img = document.createElement('img'); img.src = imgArray[i]; img.className = 'flash-img-item'; gridItem.appendChild(img); }
+                        imgContainer.appendChild(gridItem);
+                    });
+                } else {
+                    activeImages.forEach(src => { const img = document.createElement('img'); img.src = src; img.className = 'flash-img-item'; img.style.maxWidth = activeImages.length === 1 ? "100%" : "48%"; imgContainer.appendChild(img); });
+                }
+            }
+            overlay.style.display = 'flex';
+            if (window.flashTimer) clearTimeout(window.flashTimer);
+            window.flashTimer = setTimeout(() => { overlay.style.display = 'none'; }, currentMode === "pre" ? 1200 : 3500);
+        }
+
+        let bluetoothChar = null, stableWeight = 0, weightHistory = [];
+        
+        document.getElementById('connectBtn').onclick = async () => {
+            await activateNoSleep();
+            const statusDom = document.getElementById('status');
+            
+            try {
+                statusDom.innerText = "🔍 検索中...";
+                const device = await navigator.bluetooth.requestDevice({ 
+                    filters: [{ namePrefix: 'はよ選果' }], 
+                    optionalServices: [SERVICE_UUID] 
+                });
+
+                statusDom.innerText = "🔗 接続中...";
+                const server = await device.gatt.connect();
+
+                // 接続直後の安定化待機
+                await new Promise(resolve => setTimeout(resolve, 600));
+
+                statusDom.innerText = "📁 サービス取得中...";
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                
+                statusDom.innerText = "📝 キャラクタリスティック取得中...";
+                bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
+                
+                await bluetoothChar.startNotifications();
+                
+                statusDom.innerText = "✅ 稼働中";
+                if(sounds["start"]) sounds["start"].play();
+
+                bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
+                    const w = parseFloat(new TextDecoder().decode(e.target.value));
+                    if (!isNaN(w)) {
+                        document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
+                        weightHistory.push(w); 
+                        if (weightHistory.length > 3) weightHistory.shift();
+                        
+                        if (weightHistory.length === 3 && Math.max(...weightHistory) - Math.min(...weightHistory) < 0.2) {
+                            if (Math.abs(stableWeight - w) > 0.5) { 
+                                if (stableWeight > w) { 
+                                    const diff = stableWeight - w; 
+                                    if(diff >= 5.0){ 
+                                        document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減"; 
+                                        const match = currentRanges.find(r => diff >= r.min); 
+                                        if (match) triggerEffect(match); 
+                                    } 
+                                } 
+                                stableWeight = w; 
+                            }
+                        }
+                    }
+                });
+
+                device.addEventListener('gattserverdisconnected', () => {
+                    statusDom.innerText = "❌ 切断されました";
+                });
+
+            } catch (err) {
+                console.error(err);
+                statusDom.innerText = "❌ エラー: " + err.message;
+                alert("接続エラー: " + err.message);
+            }
+        };
+
+        document.getElementById('settingsBtn').onclick = () => { renderConfigList(); document.getElementById('settings-modal').style.display = 'block'; window.scrollTo(0, 0); };
+        document.getElementById('tareBtn').onclick = () => { if(bluetoothChar) bluetoothChar.writeValue(new TextEncoder().encode('1')); };
+        document.getElementById('modePre').onclick = () => { currentMode="pre"; document.getElementById('modePre').classList.add('active'); document.getElementById('modeDirect').classList.remove('active'); };
+        document.getElementById('modeDirect').onclick = () => { currentMode="direct"; document.getElementById('modeDirect').classList.add('active'); document.getElementById('modePre').classList.remove('active'); };
+
+        function updateTtsVal(idx, prop, val) { const v = Math.min(Math.max(parseFloat(val), 0.1), 2.0); currentRanges[idx][prop] = parseFloat(v.toFixed(1)); renderConfigList(); }
+
+        function renderConfigList() {
+            const area = document.getElementById('config-list'); area.innerHTML = '';
+            currentRanges.forEach((r, i) => {
+                const div = document.createElement('div'); div.className = 'config-row';
+                let slots = '';
+                for(let j=0; j<4; j++){
+                    const img = r.images[j];
+                    slots += `<div class="slot">${img?`<img src="${img}"><button class="slot-del" onclick="currentRanges[${i}].images[${j}]=null;renderConfigList()">×</button>`:`<label>＋<input type="file" style="display:none" onchange="addImg(event,${i},${j})"></label>`}</div>`;
+                }
+                let ttsControl = (r.audioMode === "tts") ? `
+                    <div class="tts-control-box">
+                        <div class="tts-row"><label>ピッチ</label><button class="step-btn" onclick="updateTtsVal(${i},'ttsPitch',${r.ttsPitch}-0.1)">-</button><input type="range" class="tts-slider" min="0.1" max="2.0" step="0.1" value="${r.ttsPitch}" oninput="updateTtsVal(${i},'ttsPitch',this.value)"><button class="step-btn" onclick="updateTtsVal(${i},'ttsPitch',${r.ttsPitch}+0.1)">+</button><span class="val-disp">${r.ttsPitch.toFixed(1)}</span></div>
+                        <div class="tts-row"><label>速さ</label><button class="step-btn" onclick="updateTtsVal(${i},'ttsRate',${r.ttsRate}-0.1)">-</button><input type="range" class="tts-slider" min="0.1" max="2.0" step="0.1" value="${r.ttsRate}" oninput="updateTtsVal(${i},'ttsRate',this.value)"><button class="step-btn" onclick="updateTtsVal(${i},'ttsRate',${r.ttsRate}+0.1)">+</button><span class="val-disp">${r.ttsRate.toFixed(1)}</span></div>
+                    </div>` : '';
+                div.innerHTML = `
+                    <div class="config-inputs">
+                        <div class="input-group"><span class="guide-label">重さ：</span><input type="number" step="0.1" value="${r.min}" oninput="currentRanges[${i}].min=parseFloat(this.value)"> g〜</div>
+                        <div class="input-group"><span class="guide-label">表示：</span><input type="text" value="${r.label}" oninput="currentRanges[${i}].label=this.value"></div>
+                        <div class="input-group"><span class="guide-label">音声：</span><select onchange="currentRanges[${i}].audioMode=this.value; renderConfigList();"><option value="mp3" ${(!r.audioMode || r.audioMode==='mp3')?'selected':''}>登録音声</option><option value="tts" ${r.audioMode==='tts'?'selected':''}>読み上げ</option></select>${(r.audioMode === "tts") ? `<input type="text" value="${r.ttsText || ''}" style="width:70px;" placeholder="読上げ文字" oninput="currentRanges[${i}].ttsText=this.value">` : `<select onchange="currentRanges[${i}].audio=this.value">${availableAudios.map(a=>`<option value="${a}" ${toHalfWidth(a)==toHalfWidth(r.audio)?'selected':''}>${a.toUpperCase()}</option>`).join('')}</select>`}</div>
+                        ${ttsControl}
+                        <div class="input-group"><span class="guide-label">背景色：</span><select onchange="currentRanges[${i}].colorName=this.value">${Object.keys(colorPalette).map(c => `<option value="${c}" ${r.colorName===c?'selected':''}>${c}</option>`).join('')}</select></div>
+                    </div>
+                    <div class="image-section"><div class="image-slots">${slots}</div></div>
+                    <div class="action-row"><button class="del-row-btn" onclick="currentRanges.splice(${i},1);renderConfigList()">削除</button><button class="preview-row-btn" onclick="triggerEffect(currentRanges[${i}], true)">プレビュー</button></div>`;
+                area.appendChild(div);
             });
         }
 
-        let bluetoothChar = null;
-        let currentWeight = 0;
-        let stableWeight = 0;
-        let weightHistory = [];
-        let wakeLock = null;
-
-        // モード切替イベント
-        document.getElementById('modePre').onclick = () => {
-            currentMode = "pre";
-            document.getElementById('modePre').classList.add('active');
-            document.getElementById('modeDirect').classList.remove('active');
-        };
-        document.getElementById('modeDirect').onclick = () => {
-            currentMode = "direct";
-            document.getElementById('modeDirect').classList.add('active');
-            document.getElementById('modePre').classList.remove('active');
-        };
-
-        async function requestWakeLock() {
-            if ('wakeLock' in navigator) {
-                try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
-            }
-            const video = document.getElementById('wake-lock-video');
-            video.src = "data:video/mp4;base64,AAAAHGZ0eXBtcDQyAAAAAG1wNDJpc29tYXZjMQAAAZptb292AAAAbG12aGQAAAAA389pS9/PaUvAAABkAAACWwABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAGGlvZHMAAAAAEAAf7v8AAQAAbWFpbg==";
-            video.play();
+        function addImg(e, i, sIdx) {
+            const file = e.target.files[0]; if(!file) return;
+            const reader = new FileReader(); reader.onload = (f) => {
+                const img = new Image(); img.src = f.target.result;
+                img.onload = () => {
+                    const cvs = document.createElement('canvas'), ctx = cvs.getContext('2d'), maxSide = 600;
+                    const sc = Math.min(maxSide/img.width, maxSide/img.height, 1.0);
+                    cvs.width = img.width*sc; cvs.height = img.height*sc;
+                    const ctx2 = cvs.getContext('2d'); ctx2.drawImage(img, 0, 0, cvs.width, cvs.height);
+                    currentRanges[i].images[sIdx] = cvs.toDataURL('image/jpeg', 0.85); renderConfigList();
+                };
+            }; reader.readAsDataURL(file);
         }
-
-        document.getElementById('connectBtn').onclick = async () => {
-            try {
-                sounds["START"].play();
-                preloadImages(); 
-                requestWakeLock();
-                const device = await navigator.bluetooth.requestDevice({
-                    filters: [{ namePrefix: 'はよ選果' }, { namePrefix: 'ESP32_Strawberry_Scale' }],
-                    optionalServices: [SERVICE_UUID]
-                });
-                const server = await device.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                bluetoothChar = await service.getCharacteristic(CHARACTERISTIC_UUID);
-                await bluetoothChar.startNotifications();
-                document.getElementById('status').innerText = "✅ 稼働中";
-                bluetoothChar.addEventListener('characteristicvaluechanged', (e) => {
-                    const val = new TextDecoder().decode(e.target.value);
-                    processWeight(parseFloat(val));
-                });
-            } catch (err) { alert("Error: " + err); }
-        };
-
-        function processWeight(w) {
-            currentWeight = w;
-            document.getElementById('weight').innerHTML = `${w.toFixed(1)}<span>g</span>`;
-            weightHistory.push(w);
-            if (weightHistory.length > 3) weightHistory.shift();
-            if (weightHistory.length === 3) {
-                const maxW = Math.max(...weightHistory);
-                const minW = Math.min(...weightHistory);
-                if (maxW - minW < 0.2) {
-                    if (Math.abs(stableWeight - w) > 0.5) { 
-                        if (stableWeight > w) checkDifference(stableWeight, w);
-                        stableWeight = w;
-                    }
-                }
-            }
-        }
-
-        function checkDifference(oldW, newW) {
-            const diff = oldW - newW;
-            if (diff < 5.0) return;
-            document.getElementById('diff-display').innerText = diff.toFixed(1) + " g 減";
-            let label = ""; let bgColor = ""; let textColor = "#fff"; let audioKey = "";
-            let imgKey = "";
-
-            if (diff >= 70.0) { label = "3"; bgColor = "#ff69b4"; audioKey = "3"; imgKey = ""; 
-            } else if (diff >= 54.0) { label = "4"; bgColor = "#ff69b4"; audioKey = "4"; imgKey = "4";
-            } else if (diff >= 44.0) { label = "5"; bgColor = "#ff69b4"; audioKey = "5"; imgKey = "5";
-            } else if (diff >= 37.1) { label = "6"; bgColor = "#ff69b4"; audioKey = "6"; imgKey = "6";
-            } else if (diff >= 32.1) { label = "7"; bgColor = "#ff69b4"; audioKey = "7"; imgKey = "7";
-            } else if (diff >= 28.3) { label = "8"; bgColor = "#ff69b4"; audioKey = "8"; imgKey = "8";
-            } else if (diff >= 25.3) { label = "9"; bgColor = "#ff69b4"; audioKey = "9"; imgKey = "9";
-            } else if (diff >= 22.9) { label = "10"; bgColor = "#008000"; audioKey = "10"; imgKey = "10";
-            } else if (diff >= 20.9) { label = "11"; bgColor = "#008000"; audioKey = "11"; imgKey = "11";
-            } else if (diff >= 19.2) { label = "12"; bgColor = "#ffff00"; textColor = "#000"; audioKey = "12"; imgKey = "12";
-            } else if (diff >= 17.8) { label = "2L大"; bgColor = "#ff0000"; audioKey = "2LD"; imgKey = "2ld";
-            } else if (diff >= 15.2) { label = "2L小"; bgColor = "#ff0000"; audioKey = "2LS"; imgKey = "2ls";
-            } else if (diff >= 13.7) { label = "L大"; bgColor = "#0000ff"; audioKey = "LD"; imgKey = "ld";
-            } else if (diff >= 11.7) { label = "L小"; bgColor = "#0000ff"; audioKey = "LS"; imgKey = "ls";
-            } else if (diff >= 10.6) { label = "M大"; bgColor = "#ff0000"; audioKey = "MD"; imgKey = "md";
-            } else if (diff >= 9.5) { label = "M小"; bgColor = "#ff0000"; audioKey = "MS"; imgKey = "ms";
-            } else if (diff >= 8.1) { label = "S大"; bgColor = "#0000ff"; audioKey = "SD"; imgKey = "sd";
-            } else if (diff >= 7.0) { label = "S小"; bgColor = "#0000ff"; audioKey = "SS"; imgKey = "ss";
-            }
-
-            if (label) {
-                showFlash(label, bgColor, textColor, imgKey);
-                if(sounds[audioKey]) {
-                    sounds[audioKey].currentTime = 0;
-                    sounds[audioKey].play();
-                }
-            }
-        }
-
-        function showFlash(text, color, tColor, imgKey) {
-            const overlay = document.getElementById('flash-overlay');
-            const fText = document.getElementById('flash-text');
-            const fImg = document.getElementById('flash-img');
-
-            fText.innerText = text;
-            fText.style.color = tColor;
-            overlay.style.backgroundColor = color;
-            
-            // モードによる出し分け
-            let displayTime = 3900; // デフォルト（直パック）
-
-            if (currentMode === "pre") {
-                // 事前選果モード：画像なし、時間は2秒
-                fImg.style.display = 'none';
-                displayTime = 2000;
-            } else {
-                // 直パック詰めモード：画像あり、時間は今まで通り（3.9秒）
-                if (imgKey && imageCache[imgKey]) {
-                    fImg.src = imageCache[imgKey].src;
-                    fImg.style.display = 'block';
-                } else {
-                    fImg.style.display = 'none';
-                }
-                displayTime = 3900;
-            }
-
-            overlay.style.display = 'flex';
-            
-            // 既存のタイマーがあればクリアして上書き（連打対策）
-            if (window.flashTimer) clearTimeout(window.flashTimer);
-            window.flashTimer = setTimeout(() => { overlay.style.display = 'none'; }, displayTime);
-        }
-
-        document.getElementById('tareBtn').onclick = () => {
-            stableWeight = currentWeight;
-            document.getElementById('diff-display').innerText = "基準リセット";
-        };
-
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                wakeLock = await navigator.wakeLock.request('screen');
-            }
-        });
     </script>
 </body>
 </html>
