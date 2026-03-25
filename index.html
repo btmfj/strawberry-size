@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>はよ選果 V2.00</title>
+    <title>はよ選果 V2.20</title>
     <style>
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background-color: #ffe4e1; font-family: sans-serif; position: fixed; width: 100%; }
         #app-container { height: 100%; display: flex; flex-direction: column; align-items: center; padding: 10px; box-sizing: border-box; width: 100%; }
@@ -19,7 +19,7 @@
         #flash-text { font-size: 14vh; font-weight: bold; color: #fff; margin: 0; text-align: center; width: 100%; white-space: nowrap; }
         #flash-img-cell { width: 100%; display: flex; justify-content: center; align-items: center; overflow: hidden; flex-grow: 1; height: 0; }
         #flash-img-container { width: 100%; height: 100%; max-width: 80vh; margin: 0 auto; position: relative; display: flex; justify-content: center; align-items: center; gap: 4px; overflow: hidden; }
-        #flash-img-container.grid-layout { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 15px; padding: 10px; box-sizing: border-box; aspect-ratio: 1 / 1; width: auto; height: 100%; }
+        #flash-img-container.grid-layout { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px; padding: 0px; box-sizing: border-box; aspect-ratio: 1 / 1; width: auto; height: 100%; }
         #flash-img-container.grid-layout div { position: relative; display: flex; width: 100%; height: 100%; overflow: hidden; background: transparent; border-radius: 0px; }
         .flash-img-item { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border-radius: 0px; }
         
@@ -75,7 +75,7 @@
     <div id="keep-alive-pixel"></div>
     <div id="app-container">
         <div id="weight-section">
-            <div id="app-title">はよ選果 V2.00</div>
+            <div id="app-title">はよ選果 V2.20</div>
             <div id="status">Bluetooth未接続</div>
             <div id="weight">0.0<span>g</span></div>
             <div id="diff-display">--.- g 減</div>
@@ -97,7 +97,7 @@
     
     <div id="settings-modal" class="modal">
         <div class="modal-header">
-            <div class="modal-title">設定 (V2.00)</div>
+            <div class="modal-title">設定</div>
             <div class="header-btn-group">
                 <button class="header-btn save-btn" onclick="saveConfig()">保存</button>
                 <button class="header-btn back-btn" onclick="document.getElementById('settings-modal').style.display='none'">戻る</button>
@@ -257,32 +257,105 @@
         }
 
         function showFlash(text, colorName, imgArray) {
-            const overlay = document.getElementById('flash-overlay');
-            const fTextCell = document.getElementById('flash-text-cell'), fText = document.getElementById('flash-text');
-            const imgCell = document.getElementById('flash-img-cell'), imgContainer = document.getElementById('flash-img-container');
-            const bgColor = colorPalette[colorName] || "#000000";
-            const activeImages = imgArray.filter(src => src !== null);
-            overlay.style.backgroundColor = bgColor; fText.innerText = text;
-            imgContainer.innerHTML = ''; imgContainer.className = '';
-            if (currentMode === "pre" || activeImages.length === 0) {
-                fTextCell.style.height = "100%"; fTextCell.style.display = "flex"; imgCell.style.display = "none"; fText.style.fontSize = "25vh"; 
-            } else {
-                fTextCell.style.height = "20%"; fTextCell.style.display = "flex"; imgCell.style.display = "flex"; fText.style.fontSize = "14vh";
-                if (imgArray.length >= 3 && activeImages.length >= 3) {
-                    imgContainer.classList.add('grid-layout');
-                    ['tl', 'tr', 'bl', 'br'].forEach((pos, i) => {
-                        const gridItem = document.createElement('div');
-                        if (pos === 'tl') { gridItem.style.justifyContent = "flex-end"; gridItem.style.alignItems = "flex-end"; }
-                        if (pos === 'tr') { gridItem.style.justifyContent = "flex-start"; gridItem.style.alignItems = "flex-end"; }
-                        if (pos === 'bl') { gridItem.style.justifyContent = "flex-end"; gridItem.style.alignItems = "flex-start"; }
-                        if (pos === 'br') { gridItem.style.justifyContent = "flex-start"; gridItem.style.alignItems = "flex-start"; }
-                        if (imgArray[i]) { const img = document.createElement('img'); img.src = imgArray[i]; img.className = 'flash-img-item'; gridItem.appendChild(img); }
-                        imgContainer.appendChild(gridItem);
-                    });
-                } else {
-                    activeImages.forEach(src => { const img = document.createElement('img'); img.src = src; img.className = 'flash-img-item'; img.style.maxWidth = activeImages.length === 1 ? "100%" : "48%"; imgContainer.appendChild(img); });
-                }
-            }
+                    const overlay = document.getElementById('flash-overlay');
+                    const fTextCell = document.getElementById('flash-text-cell'), fText = document.getElementById('flash-text');
+                    const imgCell = document.getElementById('flash-img-cell'), imgContainer = document.getElementById('flash-img-container');
+                    const bgColor = colorPalette[colorName] || "#000000";
+                    const activeImages = imgArray.filter(src => src !== null);
+                    
+                    overlay.style.backgroundColor = bgColor; 
+                    fText.innerText = text;
+                    imgContainer.innerHTML = ''; 
+                    imgContainer.className = '';
+                    
+                    // レイアウトのリセット
+                    overlay.style.flexDirection = "column"; // デフォルトは縦並び
+                    fTextCell.style.width = "100%";
+                    imgCell.style.width = "100%";
+        
+                    if (currentMode === "pre" || activeImages.length === 0) {
+                    // 事前選果または画像なし：全画面文字
+                    overlay.style.flexDirection = "column";
+                    fTextCell.style.width = "100%"; fTextCell.style.height = "100%"; 
+                    fTextCell.style.display = "flex"; imgCell.style.display = "none";
+                    
+                    let fontSize;
+                    if (window.matchMedia("(orientation: landscape)").matches) {
+                        // 【横画面】さらに巨大化！1文字なら80vh、文字数増えてもガッツリ大きく
+                        fontSize = Math.max(15, 80 - (text.length > 1 ? (text.length - 1) * 20 : 0));
+                    } else {
+                        // 【縦画面】これまでの設定を維持
+                        fontSize = Math.max(10, 25 - (text.length > 1 ? (text.length - 1) * 5 : 0));
+                    }
+                    fText.style.fontSize = fontSize + "vh"; 
+                    } else {
+                        // 【直パック詰め】画像あり
+                        imgCell.style.display = "flex";
+                        
+                        if (window.matchMedia("(orientation: landscape)").matches) {
+                            // 【横画面】左に文字(50%)、右に画像(50%)
+                            overlay.style.flexDirection = "row";
+                            fTextCell.style.width = "50%"; fTextCell.style.height = "100%";
+                            fTextCell.style.display = "flex";
+                            fTextCell.style.justifyContent = "center"; // 左右の中央
+                            fTextCell.style.alignItems = "center";     // 上下の中央
+                            imgCell.style.width = "50%"; imgCell.style.height = "100%";
+                            
+                            // 文字数によるサイズ指定（マッチの指定通り）
+                            let landscapeFS;
+                            const len = text.length;
+                            if (len <= 1) { landscapeFS = 60; }
+                            else if (len <= 2) { landscapeFS = 35; } // 2文字   
+                            else if (len <= 3) { landscapeFS = 30; } // 3文字
+                            else if (len === 4) { landscapeFS = 25; }
+                            else { landscapeFS = 18; } // 5文字以上はさらに絞る
+                            
+                            fText.style.fontSize = landscapeFS + "vh"; 
+                            imgContainer.style.maxWidth = "100%";
+                        } else {
+                            // 【縦画面】上に文字(20%)、下に画像(80%)
+                            overlay.style.flexDirection = "column";
+                            fTextCell.style.width = "100%"; fTextCell.style.height = "20%";
+                            imgCell.style.width = "100%"; imgCell.style.height = "80%";
+                            
+                            // 縦画面：5文字以上で見切れないよう、文字数に合わせて14vhから自動縮小
+                            const portraitFS = Math.max(6, 14 - (text.length > 4 ? (text.length - 4) * 2.5 : 0));
+                            fText.style.fontSize = portraitFS + "vh";
+                            imgContainer.style.maxWidth = "80vh";
+                        }
+        
+                        if (imgArray.length >= 3 && activeImages.length >= 3) {
+                            // 3枚以上の時は「田の字」
+                            imgContainer.classList.add('grid-layout');
+                            ['tl', 'tr', 'bl', 'br'].forEach((pos, i) => {
+                                const gridItem = document.createElement('div');
+                                gridItem.style.display = "flex";
+                                // 画像の位置に合わせて、内側（中央）に寄せる
+                                if (pos === 'tl') { gridItem.style.justifyContent = "flex-end"; gridItem.style.alignItems = "flex-end"; }   // 左上→右下寄
+                                if (pos === 'tr') { gridItem.style.justifyContent = "flex-start"; gridItem.style.alignItems = "flex-end"; } // 右上→左下寄
+                                if (pos === 'bl') { gridItem.style.justifyContent = "flex-end"; gridItem.style.alignItems = "flex-start"; }   // 左下→右上寄
+                                if (pos === 'br') { gridItem.style.justifyContent = "flex-start"; gridItem.style.alignItems = "flex-start"; } // 右下→左上寄
+        
+                                if (imgArray[i]) { 
+                                    const img = document.createElement('img'); 
+                                    img.src = imgArray[i]; 
+                                    img.className = 'flash-img-item'; 
+                                    gridItem.appendChild(img); 
+                                }
+                                imgContainer.appendChild(gridItem);
+                            });
+                        } else {
+                            // 1〜2枚の時は横並び
+                            activeImages.forEach(src => { 
+                                const img = document.createElement('img'); 
+                                img.src = src; 
+                                img.className = 'flash-img-item'; 
+                                img.style.maxWidth = activeImages.length === 1 ? "100%" : "48%"; 
+                                imgContainer.appendChild(img); 
+                            });
+                        }
+                    }
+            
             overlay.style.display = 'flex';
             if (window.flashTimer) clearTimeout(window.flashTimer);
             window.flashTimer = setTimeout(() => { overlay.style.display = 'none'; }, currentMode === "pre" ? 1200 : 3500);
